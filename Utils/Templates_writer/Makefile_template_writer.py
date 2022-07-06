@@ -36,8 +36,10 @@ def print_template_Makefile(
 
     tk['layers_w'] = file_list_w
     tk['sdk'] = HW_description["software development kit"]["name"]
-    root = os.path.dirname(__file__)
-    tmpl = Template(filename=os.path.join(root, "../../Hardware-targets", HW_description["name"], "Templates/Makefile_template"))
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, os.pardir))
+    tmpl_dir = os.path.join(root, 'Hardware-targets', HW_description['name'], 'Templates')
+    # root = os.path.dirname(__file__)
+    tmpl = Template(filename=os.path.join(tmpl_dir, "Makefile_template"))
     s = tmpl.render(**tk)
     save_string = os.path.join(app_directory, save_string)
     with open(save_string, "w") as f:

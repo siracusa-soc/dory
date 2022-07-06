@@ -68,8 +68,8 @@ class nnx_C_Parser(Parser_HW_to_C):
 
     def mapping_layers_to_C_files(self):
         print("\nMapping the layers files to their templates and copying the kernels associated.")
-        tmpl_dir = os.path.join(self.nnxdir, 'Templates', 'layer_templates')
-        out_dir = os.path.join(self.app_directory, 'DORY_network')
+        tmpl_dir = os.path.abspath(os.path.join(self.nnxdir, 'Templates', 'layer_templates'))
+        out_dir = os.path.abspath(os.path.join(self.app_directory, 'DORY_network'))
 
         for node in self.HWgraph:
             self.copy_backend_files(node)
