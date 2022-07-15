@@ -44,17 +44,6 @@ int L3_weights_internal;
 
 % if 'Check_all' in verbose_level:
 #ifdef VERBOSE
-static void check_layer_last(${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *d, int size, int sum_true) {
-  int sum = 0;
-  for (int i = 0; i < size / ${DORY_HW_graph[-1].output_activation_bits // 8}; i++) sum += d[i];
-
-  printf("Checking final layer: Checksum ");
-  if(sum_true == sum)
-    printf("OK\n");
-  else
-    printf("Failed: true [%d] vs. calculated [%d]\n", sum_true, sum);
-}
-
 static void checksum(char *name, char *d, int size, int sum_true) {
     int sum = 0;
     for (int i = 0; i < size; i++) sum += d[i];
@@ -206,8 +195,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
 /* ---------------------------------- */
 /* -------- SECTION 2 BEGIN --------- */
 /* ---------------------------------- */
-  for (int i = 0; i < ${len(DORY_HW_graph)}; i++)
-  {
+  for (int i = 0; i < ${len(DORY_HW_graph)}; i++) {
 /* MEMORY ALLOCATION
   - allocate memory if layer is executed from L3;
   - allocate weights
@@ -301,28 +289,18 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
     L3_output = temp;
     asm volatile("": : :"memory");
 
-% if 'Check_all' in verbose_level:
 #ifdef VERBOSE
     printf("Layer %s %d ended: \n", Layers_name[i], i);
-    if (i < ${len(DORY_HW_graph) - 1}) {
-      if (L3_output_layers[i]==1) {
-        printf("Out in L3\n");
-      } else {
-        checksum("L2 output", L2_output, activations_out_size[i], activations_out_checksum[i]);
-      }
-      printf("\n");
-    } else {
-      check_layer_last((${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *) L2_output, activations_out_size[i], activations_out_checksum[i]);
-    }
-#endif
+% if 'Check_all' in verbose_level:
+    if (L3_output_layers[i] == 1)
+      printf("Output in L3\n");
+    else
+      checksum("L2 output", L2_output, activations_out_size[i], activations_out_checksum[i]);
 % elif 'Last' in verbose_level:
     if (i == ${len(DORY_HW_graph) - 1})
-        check_layer_last((${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *) L2_output, activations_out_size[i], activations_out_checksum[i]);
-% else:
-#ifdef VERBOSE
-    printf("Layer %s %d ended: \n", Layers_name[i], i);
-#endif
+      checksum("final layer", L2_output, activations_out_size[i], activations_out_checksum[i]);
 % endif
+#endif
 
     // Free memory
     if (layer_with_weights[i] == 1)

@@ -24,7 +24,7 @@
 #include "network.h"
 
 #ifdef GVSOC_LOGGING
-#define GVSOC_LOG_LEVEL 1
+#define GVSOC_LOG_LEVEL 3
 #include "pulp_nnx_util.h"
 #endif GVSOC_LOGGING
 
@@ -277,7 +277,7 @@ void ${func_name}(
   const nnx_quant_t quant = {
     .shift_amount = out_shift,
     .mode = quantMode8Bit,
-    .function = quantFunctionRelu,
+    .function = ${'quantFunctionRelu' if use_relu else 'quantFunctionIdentity'},
     .flag_rounding = FLAG_UNUSED
   };
 
