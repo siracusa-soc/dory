@@ -55,6 +55,7 @@ class Pattern_rewriter():
         DORY_Relu_node.name = "Relu"+self.graph[i[0]].name
         DORY_Relu_node.op_type = "Relu"+self.graph[i[0]].op_type
         DORY_Relu_node.output_index = self.graph[i[1]].output_index
+        # if hasattr(self.graph[i[1]], 'outmul'):
         DORY_Relu_node.outmul = self.graph[i[1]].outmul
         DORY_Relu_node.outshift = self.graph[i[1]].outshift
         DORY_Relu_node.min = self.graph[i[1]].min
