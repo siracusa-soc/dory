@@ -72,7 +72,7 @@ class HW_node(DORY_node):
         #  ATTENTION MEMORY L3 --> TILE MEMORY DIMENSION --> Decide how to set. Re-init the whole memory?
         for level in range(self.HW_description["memory"]["levels"], 1, -1):
             mem = f'L{level-1}'
-            (weights_dim, input_dims, output_dims) = self.Tiler(self, prev_node, config['code reserved space']).get_tiling(level)
+            (weights_dim, input_dims, output_dims) = self.Tiler(self, prev_node, config).get_tiling(level)
             self.tiling_dimensions[mem]["input_dimensions"] = input_dims
             self.tiling_dimensions[mem]["output_dimensions"] = output_dims
             if "Convolution" in self.name or "FullyConnected" in self.name:

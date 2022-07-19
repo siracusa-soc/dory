@@ -83,6 +83,7 @@ class nnx_C_Parser(Parser_HW_to_C):
     def __mem_tmpl_vars(self, tmpl_writer, node, mem_level):
         mem_name = f'L{mem_level}'
         upper_mem_name = f'L{mem_level + 1}'
+        no_w_tiling = mem_level == 1 and self.config_file['use_wmem'] and self.HW_description['memory']['wmem']
 
         def set_tmpl_var(name, val):
             prefix = f'{mem_name.lower()}_'
@@ -102,7 +103,7 @@ class nnx_C_Parser(Parser_HW_to_C):
 
         weights_tile_ko, weights_tile_ki = weights_tile_shape
 
-        weights_tile_size = self.acc.weights_size(weights_tile_ko, weights_tile_ki, node.kernel_shape, node.weight_bits, flag_depthwise)
+        weights_tile_size = 0 if no_w_tiling else self.acc.weights_size(weights_tile_ko, weights_tile_ki, node.kernel_shape, node.weight_bits, flag_depthwise)
         set_tmpl_var('W_size', weights_tile_size)
 
         input_el_size = div_and_ceil(node.input_activation_bits, 8)
@@ -110,8 +111,8 @@ class nnx_C_Parser(Parser_HW_to_C):
         activation_el_size = div_and_ceil(node.constant_bits, 8)
 
         tile_ko = weights_tile_ki if flag_depthwise else weights_tile_ko
-        weights_tile_ko_len = self.acc.weights_ko_len(tile_ko, flag_depthwise)
-        weights_tile_ki_size = self.acc.weights_ki_size(weights_tile_ki, node.kernel_shape, node.weight_bits, flag_depthwise)
+        weights_tile_ko_len = 0 if no_w_tiling else self.acc.weights_ko_len(tile_ko, flag_depthwise)
+        weights_tile_ki_size = 0 if no_w_tiling else self.acc.weights_ki_size(weights_tile_ki, node.kernel_shape, node.weight_bits, flag_depthwise)
 
         def feature_len(shape):
             return shape[0] * shape[1] * shape[2]
@@ -172,7 +173,7 @@ class nnx_C_Parser(Parser_HW_to_C):
             weights_ko_len = self.acc.weights_ko_len(ko, flag_depthwise)
 
             set_tmpl_var('W_tile_ko_len', weights_tile_ko_len)
-            set_tmpl_var('W_tile_ko_len_last', rem(weights_ko_len, weights_tile_ko_len))
+            set_tmpl_var('W_tile_ko_len_last', 0 if no_w_tiling else rem(weights_ko_len, weights_tile_ko_len))
             set_tmpl_var('W_tile_ki_size', weights_tile_ki_size)
 
             x_dma_stride_1d = input_depth * input_el_size
