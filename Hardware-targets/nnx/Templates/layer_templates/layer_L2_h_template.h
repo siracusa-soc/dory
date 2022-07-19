@@ -21,6 +21,7 @@
 #include "pulp.h"
 % endif
 #include "dory.h"
+#include "pulp_nnx.h"
 
 void  ${func_name}(
   void *args

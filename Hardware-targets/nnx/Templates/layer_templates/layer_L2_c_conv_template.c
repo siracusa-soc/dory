@@ -299,6 +299,9 @@ void ${func_name}(
     nnx_task_init(&nnx_tasks[i]);
     nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}(&(nnx_tasks[i].cfg), nnx_weights, nnx_input, nnx_output);
     nnx_norm_quant(&(nnx_tasks[i].cfg), norm, quant);
+    % if use_wmem:
+    BIT_SET(nnx_tasks[i].cfg.conf0, NEUREKA_FLAG_USE_WMEM);
+    % endif
   }
 
 
@@ -324,7 +327,11 @@ void ${func_name}(
 //  \______/  \______/ |__/  \__/|__/      |______/ \______/  \______/ |__/  |__/|________/
 
     const int x_tile_ptr     = db[i_db_x].x;
+    % if use_wmem:
+    int w_tile_ptr;
+    % else:
     const int w_tile_ptr     = db[i_db_w].w;
+    % endif
 % if FLAG_BATCHNORM == 1:
     const int scale_tile_ptr = db[i_db_w].scale;
     const int bias_tile_ptr  = db[i_db_w].bias;
@@ -358,9 +365,13 @@ void ${func_name}(
 
       W_tile_ko_len = (i_nof + 1 == ${tile_dim_nof}) ? ${l1_W_tile_ko_len_last} : ${l1_W_tile_ko_len};
 
+      % if use_wmem:
+      w_tile_ptr = WEIGHT_MEM_BASE + MRAM_OFFSET + ${l1_W_tile_ko_len * l1_W_tile_ki_size} * i_nof;
+      % else:
       DMA_copy_W.ext = l2_W + ${l1_W_tile_ko_len * l1_W_tile_ki_size} * i_nof;
       DMA_copy_W.loc = w_tile_ptr;
       DMA_copy_W.length_1d_copy = W_tile_ko_len * ${l1_W_tile_ki_size};
+      % endif
 
 % if FLAG_BATCHNORM == 1:
       DMA_copy_k.ext = l2_scale + ${k_tile_size_byte_transfer} * i_nof;
@@ -438,7 +449,9 @@ void ${func_name}(
       dory_dma_memcpy_async(DMA_copy_x);
     }
     if (is_load_w) {
+      % if not use_wmem:
       dory_dma_memcpy_async(DMA_copy_W);
+      % endif
 % if FLAG_BATCHNORM == 1:
       dory_dma_memcpy_async(DMA_copy_k);
       dory_dma_memcpy_async(DMA_copy_lambda);
@@ -481,7 +494,9 @@ void ${func_name}(
       dory_dma_barrier(DMA_copy_x);
     }
     if (is_load_w) {
+      % if not use_wmem:
       dory_dma_barrier(DMA_copy_W);
+      % endif
 % if FLAG_BATCHNORM == 1:
       dory_dma_barrier(DMA_copy_k);
       dory_dma_barrier(DMA_copy_lambda);

@@ -41,6 +41,7 @@ def print_template_network(
     for nodes in graph:
         if 'FullyConnected' in nodes.name or 'Conv' in nodes.name:
             weights_number += 1
+    tk['use_wmem'] = config_file['use_wmem']
     tk['weights_number'] = weights_number
     tk['verbose_level'] = verbose_level
     tk['performance'] = perf_layer

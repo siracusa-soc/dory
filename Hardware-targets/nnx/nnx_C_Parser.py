@@ -75,6 +75,7 @@ class nnx_C_Parser(Parser_HW_to_C):
             self.copy_backend_files(node)
             tmpl_writer = TemplateWriter2D_L2(node)
             tmpl_writer = self.__nnx_vars(tmpl_writer, node)
+            tmpl_writer.use_wmem = self.config_file['use_wmem']
             tmpl_files = ['layer_L2_h_template.h', 'layer_L2_c_conv_template.c']
             tmpl_files = [os.path.join(tmpl_dir, tmpl_file) for tmpl_file in tmpl_files]
             tmpl_writer.write(tmpl_files, out_dir)
