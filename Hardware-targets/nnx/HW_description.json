@@ -21,7 +21,8 @@
 			"frequency": null
 		},
 		"DMA": "yes",
-		"cache": "no"
+		"cache": "no",
+		"wmem": true
 	},
 	"architecture": "single-core+accelerator",
 	"software development kit": {

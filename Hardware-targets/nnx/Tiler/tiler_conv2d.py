@@ -28,10 +28,10 @@ from ortools.constraint_solver import pywrapcp
 
 class Tiler_Conv2D:
     # Class to generate the Tiling of the layer.
-    def __init__(self, node, prev_node, code_reserved_space, accelerator):
+    def __init__(self, node, prev_node, conf, accelerator):
         self.node = node
         self.prev_node = prev_node
-        self.code_reserved_space = code_reserved_space
+        self.conf = conf
         self.acc = accelerator
 
     def get_tiling(self, level):
@@ -57,7 +57,7 @@ class Tiler_Conv2D:
     def get_tiling_conv2d_L3(self):
         # TODO In the current setup, width cannot be tiled. Is this the best solution?
 
-        L2_memory = self.node.HW_description["memory"]["L2"]["dimension"] - self.code_reserved_space
+        L2_memory = self.node.HW_description["memory"]["L2"]["dimension"] - self.conf['code reserved space']
         # 4 iterations, adding each time a different part to be tiled, either weights, outputs, or both. Input is forced
 
         if self.prev_node is not None and self.prev_node.tiling_dimensions['L2']['output_dimensions'] is not None:
@@ -213,7 +213,11 @@ class Tiler_Conv2D:
             out_mem = int(self.node.tiling_dimensions["L2"]["output_activation_memory"] / self.node.tiling_dimensions["L2"]["output_dimensions"][1] * h_out)
         if "Addition" not in self.node.name and "Pool" not in self.node.name:
             out_mem = int(self.node.tiling_dimensions["L2"]["output_activation_memory"] / self.node.tiling_dimensions["L2"]["output_dimensions"][0] * self.node.tiling_dimensions["L2"]["weights_dimensions"][0])
-        buffer_total = self.node.tiling_dimensions["L2"]["weight_memory"] + self.node.tiling_dimensions["L2"]["constants_memory"] + self.node.tiling_dimensions["L2"]["bias_memory"] + in_mem + out_mem
+
+        no_w_tiling = self.node.HW_description["memory"]["wmem"] and self.conf['use_wmem']
+        weight_memory = 0 if no_w_tiling else self.node.tiling_dimensions["L2"]["weight_memory"]
+
+        buffer_total = weight_memory + self.node.tiling_dimensions["L2"]["constants_memory"] + self.node.tiling_dimensions["L2"]["bias_memory"] + in_mem + out_mem
 
         # return immediately if the memory fits the L1
         if buffer_total <= L1_memory:
@@ -286,7 +290,7 @@ class Tiler_Conv2D:
         #      -> To solve this problem, they do multiple rounds of tiling in L3 tiling
         input_tile_dimension = db * tile_n_in * tile_h_in * tile_w_in * self.node.input_activation_bits // 8
         output_tile_dimension = db * tile_n_out * tile_h_out * tile_w_out * self.node.output_activation_bits // 8
-        weight_tile_dimension = db * self.acc.weights_size(tile_n_out, tile_n_in, ks, self.node.weight_bits, depthwise)
+        weight_tile_dimension = 0 if no_w_tiling else db * self.acc.weights_size(tile_n_out, tile_n_in, ks, self.node.weight_bits, depthwise)
 
         constants_tile_dimension = 0
         for name in ["l", "k"]:
