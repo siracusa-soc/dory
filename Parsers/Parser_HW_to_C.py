@@ -124,7 +124,7 @@ class Parser_HW_to_C:
     def full_graph_parsing(self):
         print("#####################################################")
         print("## DORY GENERAL PARSING FROM DORY HW IR TO C FILES ##")
-        print("## FINAL RAPRESENTATION: COMPILABLE C PROJECT      ##")
+        print("## FINAL REPRESENTATION: COMPILABLE C PROJECT      ##")
         print("#####################################################")
         os.system('rm -rf {}'.format(self.app_directory))
         os.system('mkdir {}'.format(self.app_directory))

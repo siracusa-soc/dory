@@ -220,6 +220,7 @@ class Tiler_Conv2D:
         buffer_total = weight_memory + self.node.tiling_dimensions["L2"]["constants_memory"] + self.node.tiling_dimensions["L2"]["bias_memory"] + in_mem + out_mem
 
         # return immediately if the memory fits the L1
+
         if buffer_total <= L1_memory:
             return (self.node.tiling_dimensions["L2"]["weights_dimensions"],
                     [self.node.tiling_dimensions["L2"]["input_dimensions"][0],
@@ -311,6 +312,7 @@ class Tiler_Conv2D:
                                            constraint_all, zero_variable, ks, modifier=1000000)
 
         solver.Add(obj_expr == heuristics)
+        
         objective = solver.Maximize(obj_expr, 1)
 
         decision_builder = solver.Phase([tile_n_in, tile_n_out, tile_h_in, tile_h_out, tile_w_in, tile_w_out],

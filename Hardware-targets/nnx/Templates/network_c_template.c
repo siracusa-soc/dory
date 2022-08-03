@@ -124,17 +124,17 @@ void network_terminate(struct pi_device ram)
 void execute_layer_fork(void *arg)
 {
   unsigned int *real_arg = (unsigned int *)arg;
-  if (pi_core_id() == 0) // TODO: Why is only core 0 freeing when all the cores have allocated?
-      real_arg[7] = pmsis_l1_malloc((uint32_t) ${l1_buffer}); // TODO: What is this l1_buffer?
+  if (pi_core_id() == 0) 
+      real_arg[7] = pmsis_l1_malloc((uint32_t) ${l1_buffer}); 
   switch (real_arg[11])
   {
 % for i in range(len(DORY_HW_graph)):
     case ${i}:
-      pi_cl_team_fork(NUM_CORES, (void *)${func_name[i]}, arg); // TODO Can't we just pass the pointer to the function?
+      pi_cl_team_fork(NUM_CORES, (void *)${func_name[i]}, arg); 
       break;
 % endfor
   }
-  if (pi_core_id() == 0) // TODO: Why is only core 0 freeing when all the cores have allocated?
+  if (pi_core_id() == 0) 
     pmsis_l1_malloc_free(real_arg[7], (uint32_t) ${l1_buffer});
 }
 
@@ -177,7 +177,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
 /*
   - input allocation and copy
 */
-  L2_input = dory_L2_alloc(activations_size[0], dir);
+  L2_input = dory_L2_alloc(activations_size[0], dir);//initial activation in L2 an assumption by DORY 
 
 /* ---------------------------------- */
 /* --------- SECTION 1 END ---------- */
@@ -201,15 +201,15 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
   - allocate weights
   - read weights
 */
-    L2_output = dory_L2_alloc(activations_out_size[i], !dir);
+    L2_output = dory_L2_alloc(activations_out_size[i], !dir);//allocate for the output 
 
-    if (L3_input_layers[i] == 1)
+    if (L3_input_layers[i] == 1)//if the input is in L3 then allocate space in L2. if it is small enough may be it is already in l2 as the op of previous layer 
       L2_input = dory_L2_alloc(activations_size[i], dir);
 
-    if (layer_with_weights[i] == 1)
+    if (layer_with_weights[i] == 1)// allocate space for weight 
       L2_weights = dory_L2_alloc(weights_size[i], dir);
 
-    if (allocate_layer[i] == 1) {
+    if (allocate_layer[i] == 1) {//should we move weights here or are the weights tiled. for weight memory it is tiled 
       pi_ram_read(&ram, L3_weights_internal + cumulative_weights_dimension[i], L2_weights, weights_size[i]);
       % if use_wmem:
       memcpy(WEIGHT_MEM_BASE + MRAM_OFFSET, L2_weights, weights_size[i]);
@@ -263,7 +263,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
     if (pi_cluster_open(&cluster_dev))
       return -1;
     // Then offload an entry point, this will get executed on the cluster controller
-    cluster_task.stack_size = ${master_stack};
+    cluster_task.stack_size = ${master_stack};//from hw description file 
     cluster_task.slave_stack_size = ${slave_stack};
     pi_cluster_send_task_to_cl(&cluster_dev, &cluster_task);
     // closing of the cluster
@@ -284,7 +284,6 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
     printf(" n. of Cores: %d\n",NUM_CORES);
 % endif
 
-    // TODO: What error?
     // prevents error from compiler
     asm volatile("": : :"memory");
     unsigned int temp = L3_input;
