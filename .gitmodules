@@ -1,6 +1,6 @@
 [submodule "dory_examples"]
 	path = dory_examples
-	url = git@iis-git.ee.ethz.ch:luka.macan/dory_examples-neureka.git
+	url = git@github.com:siracusa-soc/dory_examples.git
 [submodule "Hardware-targets/GAP8/Backend_Kernels/pulp-nn-mixed"]
 	path = Hardware-targets/GAP8/Backend_Kernels/pulp-nn-mixed
 	url = git@github.com:pulp-platform/pulp-nn-mixed.git
