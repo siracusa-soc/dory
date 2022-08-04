@@ -9,4 +9,4 @@
 	url = git@github.com:pulp-platform/pulp-nn.git
 [submodule "Hardware-targets/nnx/Backend_Kernels/pulp-nnx"]
 	path = Hardware-targets/nnx/Backend_Kernels/pulp-nnx
-	url = git@iis-git.ee.ethz.ch:fconti/pulp-nnx.git
+	url = git@github.com:siracusa-soc/pulp-nnx.git
