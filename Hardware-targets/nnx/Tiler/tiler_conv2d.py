@@ -222,6 +222,10 @@ class Tiler_Conv2D:
         self.node.tiling_dimensions["L1"]["db_y"] = 1
         self.node.tiling_dimensions["L1"]["db_w"] = 1
 
+        self.node.tiling_dimensions["L1"]["db_x"] = 1
+        self.node.tiling_dimensions["L1"]["db_y"] = 1
+        self.node.tiling_dimensions["L1"]["db_w"] = 1
+
         # return immediately if the memory fits the L1
 
         if buffer_total <= L1_memory:

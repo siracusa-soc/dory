@@ -27,6 +27,7 @@ from argparse import RawTextHelpFormatter
 import json
 import importlib
 
+
 def network_generate(frontend, target, conf, verbose_level='Check_all+Perf_final', perf_layer='No', optional='auto',
                      appdir='./application'):
     print(f"Using {frontend} as frontend. Targeting {target} platform. ")

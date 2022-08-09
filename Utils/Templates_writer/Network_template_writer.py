@@ -36,7 +36,6 @@ def print_template_network(
     tk = OrderedDict([])
     tk['verbose'] = 'Check' in verbose_level
     tk['weights_number'] = sum([1 for node in graph if node.has_weights()])
-
     tk['verbose_level'] = verbose_level
     tk['performance'] = perf_layer
     tk['l1_buffer'] = HW_description["memory"]["L1"]["dimension"] - HW_description["HW specific parameters"]["accelerator core0 stack"] - 7 * HW_description["HW specific parameters"]["accelerator core1-7 stack"]
