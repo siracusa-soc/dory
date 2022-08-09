@@ -57,18 +57,22 @@ class Tiler_Conv2D:
     def get_tiling_conv2d_L3(self):
         # TODO In the current setup, width cannot be tiled. Is this the best solution?
 
-        L2_memory = self.node.HW_description["memory"]["L2"]["dimension"] - self.conf['code reserved space']
+        L2_memory = self.node.hw_desc["memory"]["L2"]["dimension"] - self.conf['code reserved space']
+
         # 4 iterations, adding each time a different part to be tiled, either weights, outputs, or both. Input is forced
 
-        if self.prev_node is not None and self.prev_node.tiling_dimensions['L2']['output_dimensions'] is not None:
-            prev_tiling = self.prev_node.tiling_dimensions
-            input_in_l2 = prev_tiling["L3"]["output_dimensions"] == prev_tiling["L2"]["output_dimensions"]
-        else:
-            input_in_l2 = False
+        prev_tiling = self.prev_node.tiling_dimensions
+        is_first_node = self.prev_node == self.node
+        # We assume that the first nodes input is always in L2
+        input_in_l2 = is_first_node or prev_tiling["L3"]["output_dimensions"] == prev_tiling["L2"]["output_dimensions"]
+
+        self.node.tiling_dimensions["L2"]["db_x"] = 1
+        self.node.tiling_dimensions["L2"]["db_y"] = 1
+        self.node.tiling_dimensions["L2"]["db_w"] = 1
 
         # tiling for L3-L2 management
         buffer_total = self.node.input_activation_memory + self.node.output_activation_memory + self.node.weight_memory + self.node.bias_memory + self.node.constants_memory
-        if (buffer_total <= L2_memory) and input_in_l2:
+        if (buffer_total <= L2_memory) and (input_in_l2 or is_first_node):
             return ([self.node.output_channels, self.node.input_channels],
                     [self.node.input_channels, self.node.input_dimensions[0], self.node.input_dimensions[1]],
                     [self.node.output_channels, self.node.output_dimensions[0],
@@ -84,45 +88,26 @@ class Tiler_Conv2D:
         p = self.node.pads
         depthwise = g > 1
 
-        # TODO: incorporate double buffering into problem
-        #   - no need for iterations
-        #   - maybe can unify tiling for L3 and L2 into same function
         db_x = 1 if input_in_l2 else 2
+        self.node.tiling_dimensions["L2"]["db_x"] = db_x
+        db_scheme = [(1, 1), (1, 2), (2, 1), (2, 2)]  # (db_o, db_w)
 
-        for iteration in range(4):
+        # Skip first iteration if input is already in l2
+        if input_in_l2:
+            db_scheme = db_scheme[1:]
+
+        for db_o, db_w in db_scheme:
+            self.node.tiling_dimensions["L2"]["db_y"] = db_o
+            self.node.tiling_dimensions["L2"]["db_w"] = db_w
+
             parameters = pywrapcp.Solver.DefaultSolverParameters()
             solver = pywrapcp.Solver("simple_CP", parameters)
-            tile_n_in = solver.IntVar(1, in_ch, 'tile_n_in')
+            n_out = solver.IntConst(out_ch)
+            h_out = solver.IntConst(out_dim[0])
             tile_n_out = solver.IntVar(1, out_ch, 'tile_n_out')
             tile_h_out = solver.IntVar(1, out_dim[0], 'tile_h_out')
             tile_h_in = solver.IntVar(in_dim[0] if input_in_l2 else ks[0], in_dim[0], 'tile_h_in')
-
-            if iteration == 0:
-                db_w = 2 if input_in_l2 else 1
-                db_o = 1
-                solver.Add(tile_h_out == out_dim[0])
-                if not input_in_l2:
-                    solver.Add(tile_n_out == out_ch)
-            elif iteration == 1:
-                db_w = 1
-                db_o = 2
-                solver.Add(tile_n_out == out_ch)
-            elif iteration == 2:
-                db_w = 2
-                db_o = 2 if input_in_l2 else 1
-                if not input_in_l2:
-                    solver.Add(tile_h_out == out_dim[0])
-            else:
-                db_w = 2
-                db_o = 2
-
-            # geometrical constraint
-            solver.Add(tile_h_out * s[0] == (tile_h_in - (ks[0] - 1) + (s[0] - 1)))
-
-            if depthwise:
-                solver.Add(tile_n_in == tile_n_out)
-            else:
-                solver.Add(tile_n_in == in_ch)
+            tile_n_in = tile_n_out if depthwise else in_ch
 
             # size constraint
             input_tile_dimension = db_x * in_ch * tile_h_in * in_dim[1] * self.node.input_activation_bits // 8
@@ -134,18 +119,32 @@ class Tiler_Conv2D:
                 if name in self.node.constant_names:
                     constants_tile_dimension += db_w * tile_n_out * self.node.constant_bits // 8
 
-            constraint_all = input_tile_dimension + output_tile_dimension + weight_tile_dimension + constants_tile_dimension
+            total_size = input_tile_dimension + output_tile_dimension + weight_tile_dimension + constants_tile_dimension
 
-            solver.Add(constraint_all <= L2_memory)
+            solver.Add(total_size <= L2_memory)
 
-            # objective function:
-            # 1. constraints for pulp-nn performance optimization
-            # 2. constraints to have all tiles of same dimension
+            # geometrical constraint
+            if db_o == 1:
+                solver.Add(tile_h_out == out_dim[0])
+            else:
+                solver.Add(h_out % tile_h_out == 0)
+
+            if db_w == 1:
+                solver.Add(tile_n_out == out_ch)
+            else:
+                solver.Add(n_out % tile_n_out == 0)
+
+            if db_x == 2 and db_o == 2:
+                solver.Add(tile_h_out * s[0] == tile_h_in - (ks[0] - 1) + (s[0] - 1))
+
+            # TODO: Why this constraint?
+            if db_x == 2:
+                solver.Add(h_out % ((tile_h_in - ks[0] + s[0]) // s[0]) == 0)
 
             # objective
             obj_expr = solver.IntVar(0, 100000000000000, "obj_expr")
 
-            heuristics = self.acc.heuristic_l2(tile_n_out, tile_n_in, tile_h_out, constraint_all, ks)
+            heuristics = self.acc.heuristic_l2(tile_n_out, tile_n_in, tile_h_out, total_size, ks)
 
             solver.Add(obj_expr == heuristics)
 
@@ -183,9 +182,9 @@ class Tiler_Conv2D:
         ###############################################
         ##### PARAMETERS INITIALIZATION ###############
         ###############################################
-        L1_memory = self.node.HW_description["memory"]["L1"]["dimension"]\
-                    - self.node.HW_description["HW specific parameters"]["accelerator core0 stack"]\
-                    - 7 * self.node.HW_description["HW specific parameters"]["accelerator core1-7 stack"]
+        L1_memory = self.node.hw_desc["memory"]["L1"]["dimension"]\
+                    - self.node.hw_desc["HW specific parameters"]["accelerator core0 stack"]\
+                    - 7 * self.node.hw_desc["HW specific parameters"]["accelerator core1-7 stack"]
         in_dim = self.node.tiling_dimensions["L2"]["input_dimensions"][1:]
         out_dim = self.node.tiling_dimensions["L2"]["output_dimensions"][1:]
         out_ch = self.node.tiling_dimensions["L2"]["weights_dimensions"][0]
@@ -214,10 +213,14 @@ class Tiler_Conv2D:
         if "Addition" not in self.node.name and "Pool" not in self.node.name:
             out_mem = int(self.node.tiling_dimensions["L2"]["output_activation_memory"] / self.node.tiling_dimensions["L2"]["output_dimensions"][0] * self.node.tiling_dimensions["L2"]["weights_dimensions"][0])
 
-        no_w_tiling = self.node.HW_description["memory"]["wmem"] and self.conf['use_wmem']
+        no_w_tiling = self.node.hw_desc["memory"]["wmem"] and self.conf['use_wmem']
         weight_memory = 0 if no_w_tiling else self.node.tiling_dimensions["L2"]["weight_memory"]
 
         buffer_total = weight_memory + self.node.tiling_dimensions["L2"]["constants_memory"] + self.node.tiling_dimensions["L2"]["bias_memory"] + in_mem + out_mem
+
+        self.node.tiling_dimensions["L1"]["db_x"] = 1
+        self.node.tiling_dimensions["L1"]["db_y"] = 1
+        self.node.tiling_dimensions["L1"]["db_w"] = 1
 
         # return immediately if the memory fits the L1
 
@@ -231,6 +234,9 @@ class Tiler_Conv2D:
                      self.node.tiling_dimensions["L2"]["output_dimensions"][2]]
                     )
 
+        self.node.tiling_dimensions["L1"]["db_x"] = 2
+        self.node.tiling_dimensions["L1"]["db_y"] = 2
+        self.node.tiling_dimensions["L1"]["db_w"] = 2
         db = 2
 
         ###############################################
@@ -242,13 +248,16 @@ class Tiler_Conv2D:
         ###############################################
         parameters = pywrapcp.Solver.DefaultSolverParameters()
         solver = pywrapcp.Solver("simple_CP", parameters)
+        n_out = solver.IntConst(out_ch)
+        n_in = solver.IntConst(in_ch)
+        h_out = solver.IntConst(out_dim[0])
+        w_out = solver.IntConst(out_dim[1])
         tile_n_in = solver.IntVar(1, in_ch, 'tile_n_in')
         tile_n_out = solver.IntVar(1, out_ch, 'tile_n_out')
         tile_h_in = solver.IntVar(ks[0], in_dim[0], 'tile_h_in')
         tile_w_in = solver.IntVar(ks[1], in_dim[1], 'tile_w_in')
         tile_h_out = solver.IntVar(1, out_dim[0], 'tile_h_out')
         tile_w_out = solver.IntVar(1, out_dim[1], 'tile_w_out')
-        zero_variable = solver.IntVar(0, 0, 'zero_variable')
 
         ###############################################
         ##### GEOMETRICAL CONSTRAINTS #################
@@ -307,9 +316,9 @@ class Tiler_Conv2D:
         ###############################################
         obj_expr = solver.IntVar(0, 1000000000000, "obj_expr")
 
-        heuristics = self.acc.heuristic_l1(out_ch, in_ch, in_dim[0], in_dim[1],
+        heuristics = self.acc.heuristic_l1(n_out, n_in, h_out, w_out,
                                            tile_n_out, tile_n_in, tile_h_out, tile_w_out,
-                                           constraint_all, zero_variable, ks, modifier=1000000)
+                                           constraint_all, ks, modifier=1000000)
 
         solver.Add(obj_expr == heuristics)
         

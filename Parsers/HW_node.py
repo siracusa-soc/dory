@@ -38,12 +38,12 @@ class HW_node(DORY_node):
         np.prod(dim) / (self.group if self.group < dim[0] else dim[0]) \
         * np.prod(self.kernel_shape) * self.weight_bits / 8
 
-    def __init__(self, node, HW_description):
+    def __init__(self, node, hw_desc):
         super().__init__()
         self.__dict__ = node.__dict__
 
         self.tiling_dimensions = {}
-        for level in range(HW_description["memory"]["levels"]):
+        for level in range(hw_desc["memory"]["levels"]):
             self.tiling_dimensions["L{}".format(level+1)] = {}
             self.tiling_dimensions["L{}".format(level+1)]["weights_dimensions"] = None
             self.tiling_dimensions["L{}".format(level+1)]["input_dimensions"] = None
@@ -55,7 +55,9 @@ class HW_node(DORY_node):
             self.tiling_dimensions["L{}".format(level+1)]["output_activation_memory"] = None
         if not isinstance(self.name, type(None)):
             if "Convolution" in self.name or "FullyConnected" in self.name:
-                self.tiling_dimensions["L{}".format(level+1)]["weights_dimensions"] = [self.output_channels, self.input_channels]
+                weights_dim = [self.output_channels, self.input_channels]
+                self.tiling_dimensions["L{}".format(level+1)]["weights_dimensions"] = weights_dim
+                self.weight_memory = self.weights_size(weights_dim)
         self.tiling_dimensions["L{}".format(level+1)]["input_dimensions"] = [self.input_channels] + self.input_dimensions
         self.tiling_dimensions["L{}".format(level+1)]["output_dimensions"] = [self.output_channels] + self.output_dimensions
         self.tiling_dimensions["L{}".format(level+1)]["weight_memory"] = self.weight_memory
@@ -63,14 +65,14 @@ class HW_node(DORY_node):
         self.tiling_dimensions["L{}".format(level+1)]["constants_memory"] = self.constants_memory
         self.tiling_dimensions["L{}".format(level+1)]["input_activation_memory"] = self.input_activation_memory
         self.tiling_dimensions["L{}".format(level+1)]["output_activation_memory"] = self.output_activation_memory
-        self.HW_description = HW_description
+        self.hw_desc = hw_desc
         self.check_sum_w = None
         self.check_sum_in = None
         self.check_sum_out = None
 
     def create_tiling_dimensions(self, prev_node, config):
         #  ATTENTION MEMORY L3 --> TILE MEMORY DIMENSION --> Decide how to set. Re-init the whole memory?
-        for level in range(self.HW_description["memory"]["levels"], 1, -1):
+        for level in range(self.hw_desc["memory"]["levels"], 1, -1):
             mem = f'L{level-1}'
             (weights_dim, input_dims, output_dims) = self.Tiler(self, prev_node, config).get_tiling(level)
             self.tiling_dimensions[mem]["input_dimensions"] = input_dims

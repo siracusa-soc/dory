@@ -29,13 +29,13 @@
 #endif GVSOC_LOGGING
 
 #ifdef DEBUG_DMA_COPY
-#define dory_dma_memcpy_async(dma)                                                                                             \
-  do                                                                                                                           \
-  {                                                                                                                            \
-    printf(                                                                                                                    \
-        "\n[" #dma "] ext:%p, loc:%p, n_2d:%d, s_2d:%d, n_1d:%d, s_1d:%d, l_1d:%d\n",                                          \
-        dma.ext, dma.loc, dma.number_of_2d_copies, dma.stride_2d, dma.number_of_1d_copies, dma.stride_1d, dma.length_1d_copy); \
-    dory_dma_memcpy_async(dma);                                                                                                \
+#define dory_dma_memcpy_async(dma)                                                                                             ${"\\"}
+  do                                                                                                                           ${"\\"}
+  {                                                                                                                            ${"\\"}
+    printf(                                                                                                                    ${"\\"}
+        "\n[" #dma "] ext:%p, loc:%p, n_2d:%d, s_2d:%d, n_1d:%d, s_1d:%d, l_1d:%d\n",                                          ${"\\"}
+        dma.ext, dma.loc, dma.number_of_2d_copies, dma.stride_2d, dma.number_of_1d_copies, dma.stride_1d, dma.length_1d_copy); ${"\\"}
+    dory_dma_memcpy_async(dma);                                                                                                ${"\\"}
   } while (0)
 #endif
 
@@ -81,11 +81,18 @@ void ${func_name}(
   const unsigned int l2_y = layer_args->L2_output;
   const unsigned int l2_W = layer_args->L2_weights;
 % if FLAG_BATCHNORM == 1:
-  const unsigned int l2_scale = l2_W + ${l2_k_offset - l2_W_offset};
-  const unsigned int l2_bias  = l2_W + ${l2_lambda_offset - l2_W_offset};
+  const unsigned int l2_scale = l2_W + ${l2_k_offset};
+  const unsigned int l2_bias  = l2_W + ${l2_lambda_offset};
 % endif
   const unsigned int l1_buffer = layer_args->L1_buffer;
   const unsigned int out_shift = layer_args->out_shift;
+  nnx_padding_t padding = {
+    .top    = layer_args->padding & PAD_TOP ? ${padding_top} : DONT_PAD,
+    .right  = ${padding_right},
+    .bottom = layer_args->padding & PAD_BOTTOM ? ${padding_bottom} : DONT_PAD,
+    .left   = ${padding_left},
+    .value = 0
+  };
 
   /////////////////////
   // DMA declaration //
@@ -97,7 +104,6 @@ void ${func_name}(
   DMA_copy DMA_copy_k, DMA_copy_lambda;
 % endif
   DMA_copy DMA_copy_y[DMA_Y_CONTEXT_SIZE];
-  int dma_copy_y_job_ids[DMA_Y_CONTEXT_SIZE];
 
   //////////////////
   // DMA defaults //
@@ -295,13 +301,23 @@ void ${func_name}(
   // NNX task init //
   ///////////////////
 
+  const nnx_padding_t padding_init = {
+    .top = ${'DONT_PAD' if tile_dim_h > 1 else 'padding.top'},
+    .right = ${'DONT_PAD' if tile_dim_w > 1 else 'padding.right'},
+    .bottom = ${'DONT_PAD' if tile_dim_h > 1 else 'padding.bottom'},
+    .left = ${'DONT_PAD' if tile_dim_w > 1 else 'padding.left'},
+    .value = 0
+  };
+
   for (int i = 0; i < MIN(NNX_TASK_COUNT, total_tiles); i++) {
     nnx_task_init(&nnx_tasks[i]);
-    nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}(&(nnx_tasks[i].cfg), nnx_weights, nnx_input, nnx_output);
+    nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}(&(nnx_tasks[i].cfg), nnx_weights, nnx_input, nnx_output,
+      padding_init.right, padding_init.bottom);
     nnx_norm_quant(&(nnx_tasks[i].cfg), norm, quant);
     % if use_wmem:
     BIT_SET(nnx_tasks[i].cfg.conf0, NEUREKA_FLAG_USE_WMEM);
     % endif
+    nnx_pad_input(&(nnx_tasks[i].cfg), padding_init);
   }
 
 
@@ -349,8 +365,8 @@ void ${func_name}(
 
       // additionally overlap by padding for the first tile after a border one
       // this because in the first tile we use less pixels from x_buffer, since we have the ones of padding
-      const int pad_offset_h = i_h > 0 ? ${padding_top} : 0;
-      const int pad_offset_w = i_w > 0 ? ${padding_left} : 0;
+      const int pad_offset_h = i_h > 0 ? padding.top : 0;
+      const int pad_offset_w = i_w > 0 ? padding.left : 0;
 
       DMA_copy_x.ext = dory_get_tile_3d(l2_x, i_h, i_w, i_nif, ${x_tile_size_h}, ${x_tile_size_w}, ${x_tile_size_nif}, ${x_w}, ${nif*g}, ${conv_overlap1}, ${conv_overlap2}, 0, pad_offset_h, pad_offset_w, 0, ${x_data_size_byte});
       DMA_copy_x.loc = x_tile_ptr;
@@ -415,12 +431,23 @@ void ${func_name}(
 
     nnx_task_to_offload = is_border_tile ? &nnx_tasks[NNX_TASK_REMAINDER] : &nnx_tasks[NNX_TASK_BODY];
 
+    nnx_padding_t tile_padding = {
+      .top    = ${ 'i_h == 0 ? padding.top : DONT_PAD' if tile_dim_h > 1 else 'padding.top'},
+      .right  = ${f'i_w == {tile_dim_w} - 1 ? padding.right : DONT_PAD' if tile_dim_w > 1 else 'padding.right'},
+      .bottom = ${f'i_h == {tile_dim_h} - 1 ? padding.bottom : DONT_PAD' if tile_dim_h > 1 else 'padding.bottom'},
+      .left   = ${ 'i_w == 0 ? padding.left : DONT_PAD' if tile_dim_w > 1 else 'padding.left'},
+      .value = 0
+    };
+
     if (is_border_tile) {
       nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}_update_dims(&(nnx_task_to_offload->cfg),
-          y_tile_size_h, y_tile_size_w, W_tile_size_nof, W_tile_size_nif);
+          y_tile_size_h, y_tile_size_w, x_tile_size_w, W_tile_size_nof, W_tile_size_nif,
+          tile_padding.right, tile_padding.bottom);
     }
 
-    nnx_task_to_offload->infeat_ptr = x_tile_ptr;
+    nnx_pad_input(&(nnx_task_to_offload->cfg), tile_padding);
+
+    nnx_task_to_offload->infeat_ptr = x_tile_ptr - (tile_padding.top * x_tile_size_w + tile_padding.left) * ${x_tile_size_nif};
     nnx_task_to_offload->weights_ptr = w_tile_ptr;
 % if FLAG_BATCHNORM == 1:
     nnx_task_to_offload->scale_ptr = scale_tile_ptr;
@@ -443,7 +470,7 @@ void ${func_name}(
     // jobs commited.
     // This barrier is required before dma_memcpy so that we don't
     // overwrite the data being used by the accelerator.
-    dma_copy_y_job_ids[DMA_Y_INDEX(i_tile)] = nnx_acquire();
+    nnx_acquire();
 
     if (is_load_x) {
       dory_dma_memcpy_async(DMA_copy_x);
@@ -468,10 +495,7 @@ void ${func_name}(
 // |  $$$$$$/   | $$  |  $$$$$$/| $$  | $$| $$$$$$$$
 //  \______/    |__/   \______/ |__/  |__/|________/
 
-    // If the accelerator is running a job with an id greater then
-    // the id of the tile we have to store, it means it has processed
-    // the tile and its output can be stored to l2 memory.
-    const int is_store = nnx_job_id() > dma_copy_y_job_ids[DMA_Y_INDEX(i_store_y)];
+    const is_store = i_tile > i_store_y + 1;
 
     if (is_store) {
       dory_dma_memcpy_async(DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
@@ -502,9 +526,8 @@ void ${func_name}(
       dory_dma_barrier(DMA_copy_lambda);
 % endif
     }
-    // This checks if we are about to start a job that is writting
-    // to the buffer that we are storing at the moment.
-    if (i_tile == i_store_y + 2) {
+    // Wait to write the data so that not to overwrite it by the next job
+    if (is_store) {
       dory_dma_barrier(DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
     }
 
@@ -622,7 +645,7 @@ void ${func_name}(
 
   for (; i_store_y < total_tiles; i_store_y++) {
     if (i_store_y < total_tiles - 1) {
-      nnx_wait_on_id(dma_copy_y_job_ids[DMA_Y_INDEX(i_store_y)]);
+      nnx_wait_not_full();
     } else {
       nnx_wait_empty();
     }
