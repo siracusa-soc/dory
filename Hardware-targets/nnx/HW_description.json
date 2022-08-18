@@ -3,13 +3,13 @@
 	"memory": {
 		"levels": 3,
 		"L1": {
-			"dimension": 64000,
+			"dimension": 256000,
 			"bandwidth": 32,
 			"latency": 1,
 			"frequency": 100000000
 		},
 		"L2": {
-			"dimension": 512000,
+			"dimension": 2048000,
 			"bandwidth": 8,
 			"latency": 10,
 			"frequency": 100000000
