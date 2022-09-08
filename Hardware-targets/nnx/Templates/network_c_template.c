@@ -41,7 +41,7 @@ char* L2_weights;
 char* l1_buffer;
 char* bypass_activations;
 int L3_weights_internal;
-
+static int nb_callback_exec=0;
 % if 'Check_all' in verbose_level:
 #ifdef VERBOSE
 static void checksum(char *name, char *d, int size, int sum_true) {
@@ -120,7 +120,10 @@ void network_terminate(struct pi_device ram)
   pi_ram_free(&ram, L3_input, (uint32_t) 1500000);
   pi_ram_free(&ram, L3_output, (uint32_t) 1500000);
 }
-
+static void cluster_task_callback(void *arg)
+{
+  nb_callback_exec++;
+}
 void execute_layer_fork(void *arg)
 {
   unsigned int *real_arg = (unsigned int *)arg;
@@ -251,6 +254,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
 /*
 - Execution of the layers_pointers
 */
+    struct pi_task task;
 % if 'Yes' in performance or 'Perf_final' in verbose_level:
     // perf measurement begin
     pi_perf_conf(1<<PI_PERF_CYCLES);
@@ -259,13 +263,19 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
     pi_perf_start();
 % endif
     pi_cluster_task(&cluster_task, execute_layer_fork, &args);
+    pi_task_callback(&task, cluster_task_callback, (void *)&task);
     pi_open_from_conf(&cluster_dev, &conf);
     if (pi_cluster_open(&cluster_dev))
       return -1;
     // Then offload an entry point, this will get executed on the cluster controller
     cluster_task.stack_size = ${master_stack};//from hw description file 
     cluster_task.slave_stack_size = ${slave_stack};
-    pi_cluster_send_task_to_cl(&cluster_dev, &cluster_task);
+    pi_cluster_send_task_to_cl_async(&cluster_dev, &cluster_task, &task);
+    while (nb_callback_exec== 0)
+    {
+      pi_yield_polling();
+      // pi_yield();
+    }
     // closing of the cluster
     pi_cluster_close(&cluster_dev);
 % if 'Yes' in performance or 'Perf_final' in verbose_level:
