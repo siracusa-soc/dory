@@ -256,6 +256,10 @@ class Neureka(Accelerator):
                 "prio": 2
             },
             {
+                "value": divisible(w_out-tile_w_out, tile_w_out),
+                "prio": 2
+            },
+            {
                 "value": divisible(tile_h_out, self.H_OUT),
                 "prio": 1.5
             },
