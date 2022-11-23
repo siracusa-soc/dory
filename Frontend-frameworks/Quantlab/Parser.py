@@ -6,7 +6,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -44,6 +44,12 @@ class onnx_manager(Parser_ONNX_to_DORY):
         super().__init__(onnx, rules, layers_accepted, layers_neglected, layers_to_node)
 
     def frontend_mapping_to_DORY_nodes(self):
+
+        def pos_in_schedule(node: str) -> int:
+            for idx, node_iterating in enumerate(list(self.graph.graph.node)):
+                if node_iterating.output[0] == node:
+                    return idx
+
         print("\nQuantlab Frontend: Matching patterns from generated ONNX to DORY.")
         for i, node in enumerate(self.DORY_Graph):
             string_matching, indexes = self.pattern_matching(node, i)
@@ -52,7 +58,7 @@ class onnx_manager(Parser_ONNX_to_DORY):
         print("\nQuantlab Frontend: Updating Add nodes with constants.")
         for i, node in enumerate(self.DORY_Graph):
             if "Addition" in node.name:
-                ## output parameters 
+                ## output parameters
                 node.outshift = {}
                 node.outshift["value"] = node.out_shift
                 node.outshift["layout"] = ""
@@ -70,7 +76,8 @@ class onnx_manager(Parser_ONNX_to_DORY):
                 delattr(node, 'out_add')
                 # input 1 parameters
                 #### Look at the order of inputs in Onnx. If the lowest index is not the first argument, revert the order inmul1 and inmul2
-                if int(node.input_indexes[0]) > int(node.input_indexes[1]):
+                # Scheremo: Supposed to check for relative ordering in toposort schedule of graph
+                if pos_in_schedule(node.input_indexes[0]) > pos_in_schedule(node.input_indexes[1]):
                     temp_shift = node.in1_shift
                     temp_mul   = node.in1_mul
                     temp_add   = node.in1_add
@@ -118,7 +125,7 @@ class onnx_manager(Parser_ONNX_to_DORY):
                 delattr(node, 'out_rq')
                 delattr(node, 'in1_n_levels')
                 delattr(node, 'in1_rq')
-        
+
     def add_nodes_precision(self):
         print("\nQuantlab Frontend: Adding Bit and Types to Nodes.")
         # Right now, the precision is fixed. We can extract it from either the original onnx graph or from a json.
@@ -154,6 +161,9 @@ class onnx_manager(Parser_ONNX_to_DORY):
     def add_data_layout(self):
         print("\nQuantlab Frontend: Adding Data Layout.")
         for i, node in enumerate(self.DORY_Graph):
+            # Scheremo: This should fix the unhandled exception when constant_names of a node is empty
+            # leading to weights_name being undefined
+            weights_name = ''
             for name in node.constant_names:
                 if name not in ["l","k","outshift","outmul","outadd", "inmul1", "inmul2", "inshift1", "inshift2", "inadd1", "inadd2"]:
                     if "bias" not in name:
@@ -167,6 +177,3 @@ class onnx_manager(Parser_ONNX_to_DORY):
                 else:
                     node.__dict__[weights_name]["layout"] = "CoutCinK"
             node.layout = "CHW"
-
-
-
