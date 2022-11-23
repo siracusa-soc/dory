@@ -5,7 +5,7 @@
 # Alessio Burrello <alessio.burrello@unibo.it>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -49,7 +49,7 @@ class Parser_DORY_to_HW:
             string_matching, indexes = self.pattern_matching(node, i)
             if isinstance(string_matching, str):
                 self.DORY_Graph = self.Pattern_rewriter(self.DORY_Graph).execute(string_matching, indexes)
-        
+
     def check_graph(self):
         for node in self.DORY_Graph:
             if node.name not in self.supported_nodes:
@@ -131,25 +131,29 @@ class Parser_DORY_to_HW:
                                     nodes_scan_2.add_existing_parameter("branch_last", 0)
                                     break
                                 else:
-                                    nodes_scan_2.add_existing_parameter("branch_change", 1)  
-                                    node.add_existing_parameter("branch_last", 1)   
+                                    nodes_scan_2.add_existing_parameter("branch_change", 1)
+                                    node.add_existing_parameter("branch_last", 1)
                                     break
                             else:
                                 if(i < j):
                                     node.add_existing_parameter("branch_last", 1)
                                 else:
-                                    nodes_scan_2.add_existing_parameter("branch_last", 1)  
+                                    nodes_scan_2.add_existing_parameter("branch_last", 1)
 
     def update_dimensions_graph(self):
         print("\nUpdating dimensions of vectors inside the graph, if they do not match among nodes")
         for i, node in enumerate(self.DORY_Graph):
             if i > 0:
-                if isinstance(self.DORY_Graph[i].input_channels, type(None)):
+                # Scheremo: Fix bug where unhandled exception is thrown whenever
+                # input_channels is not defined...
+                if hasattr(self.DORY_Graph[i], 'input_channels') and isinstance(self.DORY_Graph[i].input_channels, type(None)):
                     if "FullyConnected" in self.DORY_Graph[i].name:
                         self.DORY_Graph[i].input_channels = int(self.DORY_Graph[i-1].output_channels*np.prod(self.DORY_Graph[i-1].output_dimensions))
                     else:
                         self.DORY_Graph[i].input_channels = self.DORY_Graph[i-1].output_channels
-                if len(self.DORY_Graph[i].input_dimensions)==0:
+                # Scheremo: Fix bug where unhandled exception is thrown whenever
+                # input_dimensions is not defined...
+                if hasattr(self.DORY_Graph[i], 'input_dimensions') and len(self.DORY_Graph[i].input_dimensions)==0:
                     self.DORY_Graph[i].input_dimensions = self.DORY_Graph[i-1].output_dimensions
 
     def add_tensors_memory_occupation_and_MACs(self):
@@ -180,13 +184,13 @@ class Parser_DORY_to_HW:
 
     def renaming_weights(self):
         print("\nDORY Backend: Renaming Weights tensors.")
-        for i, node in enumerate(self.DORY_Graph):            
-            node.rename_weights()           
+        for i, node in enumerate(self.DORY_Graph):
+            node.rename_weights()
 
     def formatting_constant_parameters_tensors_and_activations(self):
         print("\nDORY Backend: Formatting constants and adding checksums")
-        for i, node in enumerate(self.DORY_Graph):            
-            node.add_checksum_w_integer()           
+        for i, node in enumerate(self.DORY_Graph):
+            node.add_checksum_w_integer()
             node.add_checksum_activations_integer(self.network_directory, i)
 
     def full_graph_parsing(self):
@@ -219,4 +223,3 @@ class Parser_DORY_to_HW:
         self.check_graph()
         self.check_parameters()
         return self.DORY_Graph
-
