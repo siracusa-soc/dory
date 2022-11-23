@@ -150,7 +150,10 @@ class Neureka(Accelerator):
         retval = 0
         for i in range(qw):
             for j, el in enumerate(tile):
-                if el.item() & (1 << i):
+                # Scheremo: el.item() is assumed to be an integer - this doesn't necessarily hold
+                # and does not seem to be required by any spec - add explicit cast
+                assert np.isclose(el.item(), int(el.item())), "el cannot be reliably cast to integer!"
+                if int(el.item()) & (1 << i):
                     retval |= 1 << (i * self.KI_PER_WORD + j)
         return retval
 
@@ -198,7 +201,10 @@ class Neureka(Accelerator):
     def __subtile_bit_unroll_3x3(self, subtile, bit_idx):
         retval = 0
         for i, el in enumerate(subtile):
-            if el.item() & (1 << bit_idx):
+            # Scheremo: el.item() is assumed to be an integer - this doesn't necessarily hold
+            # and does not seem to be required by any spec - add explicit cast
+            assert np.isclose(el.item(), int(el.item())), "el cannot be reliably cast to integer!"
+            if int(el.item()) & (1 << bit_idx):
                 retval |= 1 << i
         return retval
 
@@ -314,7 +320,7 @@ if __name__ == "__main__":
         else:
             print(f'Success!')
             return True
-    
+
     def test_generator(fs, test_count):
         print(f'Testing {fs}x{fs} convolution:')
         pass_count = 0
