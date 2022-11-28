@@ -32,24 +32,33 @@ Layer tiling is depicted in Fig.1.
 
 Platform Supported
 ------------------
-The current platforms supported are GAP8 and Occamy chip. 
+The current platforms supported are GAP8, Diana chip, and Occamy chip (under maintenance). 
+For each backend, you have different options:
+* GAP8_board: insert limitations for dory calls, which are blocking.
+* GAP8_board_L2: it also removes the L3 memory utilization.
+* GAP8_gvsoc: no limitations.
+
+* Diana_SoC: generates the whole executable application.
+* Diana_TVM: only generates strings to be passed to tvm.
 
 Limitations
 -----------
-The DORY framework is currently tested on feed-forward networks with single-wire residual connections. NEMO produces the input ONNXs.
+The DORY framework is currently tested on feed-forward networks with single-wire residual connections. NEMO or Quantlab produces the input ONNXs.
+
 You have to set the "v2" chip flag in DORY parameters to use GAP8 v2 boards or v1 boards. Further, you have to flash weights by using the old pulpbridge manually.
 
 Supported layer types
 ---------------------
 * Pointwise Convolution (+ BatchNorm + Relu)
 * DepthWise Convolution (+ BatchNorm + Relu)
+* Convolution (+ BatchNorm + Relu)
 * Max Pooling (+ BatchNorm)
 * Average Pooling (+ BatchNorm)
-* Add (+ BatchNorm + Relu) -- NOT FULLY TESTED
+* Add (+ BatchNorm + Relu)
 * Linear Layer (+ BatchNorm + Relu)
 * Linear Layer 32 bits output -- final layer
 
-All layers are implemented in 8-bit integers.
+All layers are implemented in 8-bit integers, but also in mixed-precision bits (2, 4, 8 bits).
 Each specific layer is read from the Frontend by searching from specific patterns in the .onnx graph.
 
 ### Quantlab Frontend
@@ -78,16 +87,17 @@ These nodes are searched as consecutive nodes in the onnx graph.
 Current Issues 
 --------------
 
-* Add topology: right now, there is no support for AddBNRelu with Quantlab Frontend.
-* The BNRelu block on a branch which is executed before an Add, should not be added to the previous node, but to the Add node. Currently, it is neglected.
-* Mixed-precision libraries: Not correctly working
 * 1D Mixed-precision networks: not supported. The 2D mixed-precision kernels are used.
 
 Topology tested
 ---------------
 * MobilenetV1-128
 * Custom networks
-* Coming soon: MobilenetV1-224, MobilenetV2-128, MobilenetV2-224
+* MobilenetV1-224 4-8bits
+* MobilenetV2-224 4-8 bits
+* MobilenetV1-224 8bits
+* MobilenetV2-224 8 bits 
+* Residual networks 
 
 Requirements
 ------------
@@ -102,7 +112,11 @@ The framework has been developed using python 3.6.8.
 The following packages are needed:
 * Mako (1.0.12)
 * numpy (1.18.4) 
+<<<<<<< HEAD
 * onnx (1.5.0)    
+=======
+* onnx (1.10.0)    
+>>>>>>> origin/master
 * ortools (7.5.7466)
 
 ### Input
@@ -121,16 +135,23 @@ The execution of DORY for 8-bits networks requires the following folders:
 Execute the following commands to clone DORY and pulp-nn backend: 
 ```
 git clone https://github.com/pulp-platform/dory
-git submodule update --init --recursive
+cd dory
+git submodule update --remote --init dory/dory_examples
+git submodule update --remote --init dory/Hardware_targets/GAP8/Backend_Kernels/pulp-nn
+git submodule update --remote --init dory/Hardware_targets/GAP8/Backend_Kernels/pulp-nn-mixed
+python3 -m pip install -e .
 ```
 
 Examples
 --------
-To download the examples built on DORY, clone the internal dory_example submodule:
+To download the examples built on DORY, clone the internal dory_example submodule (it should be automatically previously downloaded).
+Then, you can run one example from the library with the following command:
 ```
-cd dory
-git submodule update --init --recursive
+python3 network_generate.py NEMO GAP8.GAP8_gvsoc ./dory/dory_examples/config_files/config_NEMO_MV1.json --app_dir ./application/
 ```
+Where NEMO is the Frontened used, GAP8.GAP8_gvsoc the backend, ./dory/dory_examples/config_files/config_NEMO_MV1.json the config file.
+Note that in the folder logs/, all the intermediate .json and .onnx are generated.
+
 The power profiling on a GAP8 v3 of a 1.0-MobilenetV1-128 is reported in Fig.2.
 <p align="center">
   <img src="images/network_power.PNG" align="middle" width="1024">
@@ -141,8 +162,10 @@ The power profiling on a GAP8 v3 of a 1.0-MobilenetV1-128 is reported in Fig.2.
 
 ### Contributors
 + **Alessio Burrello**, *University of Bologna*, [email](mailto:alessio.burrello@unibo.it)
-+ **Thorir Mar Ingolfsson**, *ETH Zurich*, [email](mailto:thoriri@iis.ee.ethz.ch)
 + **Francesco Conti**, *University of Bologna*, [email](mailto:f.conti@unibo.it)
++ **Luka Macan**, *University of Bologna*, [email](luka.macan@unibo.it)
++ **Georg Ruetishauer**, *ETH Zurich*, [email](georgr@iis.ee.ethz.ch)
++ **Thorir Mar Ingolfsson**, *ETH Zurich*, [email](mailto:thoriri@iis.ee.ethz.ch)
 + **Angelo Garofalo**, *University of Bologna*, [email](mailto:angelo.garofalo@unibo.it)
 + **Nazareno Bruschi**, *University of Bologna*, [email](mailto:nazareno.bruschi@unibo.it)
 + **Giuseppe Tagliavini**, *University of Bologna*, [email](mailto:giuseppe.tagliavini@unibo.it)
