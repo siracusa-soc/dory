@@ -5,7 +5,7 @@
 # Alessio Burrello <alessio.burrello@unibo.it>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -43,6 +43,7 @@ class HW_node(DORY_node):
         self.__dict__ = node.__dict__
 
         self.tiling_dimensions = {}
+        # Scheremo: Just look at this...
         for level in range(HW_description["memory"]["levels"]):
             self.tiling_dimensions["L{}".format(level+1)] = {}
             self.tiling_dimensions["L{}".format(level+1)]["weights_dimensions"] = None
@@ -56,6 +57,7 @@ class HW_node(DORY_node):
         if not isinstance(self.name, type(None)):
             if "Convolution" in self.name or "FullyConnected" in self.name:
                 self.tiling_dimensions["L{}".format(level+1)]["weights_dimensions"] = [self.output_channels, self.input_channels]
+
         self.tiling_dimensions["L{}".format(level+1)]["input_dimensions"] = [self.input_channels] + self.input_dimensions
         self.tiling_dimensions["L{}".format(level+1)]["output_dimensions"] = [self.output_channels] + self.output_dimensions
         self.tiling_dimensions["L{}".format(level+1)]["weight_memory"] = self.weight_memory
@@ -72,7 +74,11 @@ class HW_node(DORY_node):
         #  ATTENTION MEMORY L3 --> TILE MEMORY DIMENSION --> Decide how to set. Re-init the whole memory?
         for level in range(self.HW_description["memory"]["levels"], 1, -1):
             mem = f'L{level-1}'
+            # try:
             (weights_dim, input_dims, output_dims) = self.Tiler(self, prev_node, config).get_tiling(level)
+            # except Exception as e:
+            #     print(e)
+            #     import IPython; IPython.embed()
             self.tiling_dimensions[mem]["input_dimensions"] = input_dims
             self.tiling_dimensions[mem]["output_dimensions"] = output_dims
             if "Convolution" in self.name or "FullyConnected" in self.name:

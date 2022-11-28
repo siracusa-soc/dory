@@ -5,7 +5,7 @@
 # Alessio Burrello <alessio.burrello@unibo.it>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -52,6 +52,18 @@ class DORY_node:
         self.input_activation_type = None
         self.min = None
         self.max = None
+        # Scheremo: input_channels and input_dimensions are expected downstream:
+        self.input_channels = None
+        self.input_dimensions = []
+        # Scheremo: same for output
+        self.output_channels = None
+        self.output_dimensions = []
+        # Scheremo: and weight_memory apparently, too
+        self.weight_memory = None
+        self.bias_memory = None
+        self.constants_memory = None
+        self.input_activation_memory = None
+        self.output_activation_memory = None
 
     def print_parameters(self):
         for parameter in self.__dict__:
@@ -81,12 +93,12 @@ class DORY_node:
     def populate_DORY_node(self, node_iterating, graph):
         DORY_parameters = {}
         #### Names: Convolution, Addition, FullyConnected, Pooling
-        mapping_names = {'AveragePool': 'Pooling', 
-                         'MaxPool': 'Pooling', 
-                         'Conv': 'Convolution', 
-                         'Gemm': 'FullyConnected', 
-                         'MatMul': 'FullyConnected', 
-                         'GlobalAveragePool': 'Pooling', 
+        mapping_names = {'AveragePool': 'Pooling',
+                         'MaxPool': 'Pooling',
+                         'Conv': 'Convolution',
+                         'Gemm': 'FullyConnected',
+                         'MatMul': 'FullyConnected',
+                         'GlobalAveragePool': 'Pooling',
                          'Add': 'Addition'}
         if node_iterating.op_type in mapping_names.keys():
             DORY_parameters['name'] = mapping_names[node_iterating.op_type]
@@ -179,4 +191,3 @@ class DORY_node:
             if not isinstance(value, np.ndarray) and not isinstance(value,str) and not isinstance(value,dict) and not isinstance(value,type(None)) and key not in added_parameters:
                 node_dict["attribute"].append({"name": key, "ints": ([str(value)] if not isinstance(value,list) else [str(v) for v in value])})
         return node_dict
-

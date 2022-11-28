@@ -5,7 +5,7 @@
 # Alessio Burrello <alessio.burrello@unibo.it>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -27,10 +27,10 @@ class Layer_node(DORY_node):
     def __init__(self):
         super().__init__()
         self.kernel_shape = [] # fH x fW
-        self.dilations = [] 
+        self.dilations = []
         self.group = None
-        self.strides = [] 
-        self.input_channels = None 
+        self.strides = []
+        self.input_channels = None
         self.output_channels = None
         self.input_dimensions = [] # H x W
         self.output_dimensions = [] # H x W
@@ -50,6 +50,7 @@ class Layer_node(DORY_node):
             try:
                 Layer_parameters["input_channels"] = dimension[1].dim_value
                 Layer_parameters["input_dimensions"] = [e.dim_value for e in dimension[2:]]
+            # Scheremo: Come on, catch and handle the exception SPECIFICALLY for ALL cases, not just some cases that are not be generally applicable!
             except IndexError:
                 ## Needed for some nodes, as Reshape, which does not contain the dimensions informations
                 Layer_parameters["input_channels"] = None

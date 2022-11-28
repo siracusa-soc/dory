@@ -5,7 +5,7 @@
 # Alessio Burrello <alessio.burrello@unibo.it>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -58,6 +58,12 @@ class Parser_ONNX_to_DORY:
         return new_node
 
     def ONNXtoDORY(self):
+
+        def pos_in_schedule(node: str) -> int:
+            for idx, node_iterating in enumerate(list(self.graph.graph.node)):
+                if node_iterating.output[0] == node:
+                    return idx
+
         ######### CREATING NODES ###########
         print("\nParsing ONNX Graph to create DORY graph.")
         for node_iterating in (self.graph.graph.node):
@@ -66,14 +72,14 @@ class Parser_ONNX_to_DORY:
             ### Neglecting some nodes since they are not translated to any operation on any backend
             if node_iterating.op_type in self.layers_neglected:
                 for node in self.DORY_Graph[::-1]:
-                    if int(node_iterating.output[0]) > int(node.get_parameter('output_index')) and node.get_parameter("name") != "Constant":
-                        node.add_existing_parameter('output_index', node_iterating.output[0]) 
+                    if pos_in_schedule(node_iterating.output[0]) > pos_in_schedule(node.get_parameter('output_index')) and node.get_parameter("name") != "Constant":
+                        node.add_existing_parameter('output_index', node_iterating.output[0])
                         break
             # Adding a new layer
             elif node_iterating.op_type in self.layers_accepted:
                 new_node = self.create_node(node_iterating, self.graph)
                 self.DORY_Graph.append(new_node)
-            else: 
+            else:
                 sys.exit("DORY Frontend. Node not parsed.")
 
     def remove_Constants(self):
@@ -134,7 +140,7 @@ class Parser_ONNX_to_DORY:
                                 match = 1
                                 DORY_node_indexes.append(i)
                                 node = node_i
-                                index = int(nodes_index) 
+                                index = int(nodes_index)
                                 index_in_pattern.append(out_index)
                 if sum(x=="Match" for x in nodes) == len(nodes):
                     if number_of_nodes < rule["number_of_nodes"]:
@@ -174,14 +180,14 @@ class Parser_ONNX_to_DORY:
                                     nodes_scan_2.add_existing_parameter("branch_last", 0)
                                     break
                                 else:
-                                    nodes_scan_2.add_existing_parameter("branch_change", 1)  
-                                    node.add_existing_parameter("branch_last", 1)   
+                                    nodes_scan_2.add_existing_parameter("branch_change", 1)
+                                    node.add_existing_parameter("branch_last", 1)
                                     break
                             else:
                                 if(i < j):
                                     node.add_existing_parameter("branch_last", 1)
                                 else:
-                                    nodes_scan_2.add_existing_parameter("branch_last", 1)  
+                                    nodes_scan_2.add_existing_parameter("branch_last", 1)
 
     def add_data_layout(self):
         print("\nTo be implemented in the target backend")
@@ -212,4 +218,3 @@ class Parser_ONNX_to_DORY:
         self.Printer_Frontend.print_onnx_from_DORY_graph("05_DORY_Frontend_final_graph", self.DORY_Graph)
         self.check_graph()
         return self.DORY_Graph
-

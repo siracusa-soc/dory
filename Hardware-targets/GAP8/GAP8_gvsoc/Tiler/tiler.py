@@ -6,7 +6,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2018-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -26,10 +26,10 @@ from .tiler_add import Tiler_Add
 
 class Tiler:
     # Class to generate the Tiling of the layer.
-    def __init__(self, HW_node, previous_HW_node, code_reserved_space):
+    def __init__(self, HW_node, previous_HW_node, conf):
         self.HW_node = HW_node
         self.previous_HW_node = previous_HW_node
-        self.code_reserved_space = code_reserved_space
+        self.code_reserved_space = conf['code_reserved_space']
 
     def get_tiling(self, level):
         # This function is used to create the tiling of either a convolutional layer or

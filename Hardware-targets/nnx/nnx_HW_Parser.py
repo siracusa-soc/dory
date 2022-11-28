@@ -5,7 +5,7 @@
 # Alessio Burrello <alessio.burrello@unibo.it>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -28,7 +28,6 @@ from Parsers.Layer_node import Layer_node
 from Parsers.Parser_DORY_to_HW import Parser_DORY_to_HW
 from .HW_Pattern_rewriter import Pattern_rewriter
 from .Tiler.tiler import Tiler
-
 
 class nnx_HW_Parser(Parser_DORY_to_HW):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
