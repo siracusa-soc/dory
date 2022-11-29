@@ -38,7 +38,7 @@ file_path = "/".join(os.path.realpath(__file__).split("/")[:-1])
 
 class C_Parser(Parser_HW_to_C):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, config_file, config_file_dir, verbose_level, perf_layer, precision_library, app_directory):
+    def __init__(self, graph, config_file, config_file_dir, verbose_level, perf_layer, precision_library, app_directory, n_inputs=1):
         f = open(os.path.join(file_path, "HW_description.json"))
         HW_description = json.load(f)
         self.precision_library = precision_library
@@ -49,14 +49,14 @@ class C_Parser(Parser_HW_to_C):
     def copy_backend_files(self, node):
         root = os.path.dirname(__file__)
         files = os.path.join(root, "../Backend_Kernels/dory-hal/")
-        if os.listdir(os.path.join(files, "include".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.app_directory, "DORY_network/inc")):
+        if os.listdir(os.path.join(files, "include".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.app_directory, "inc")):
             for file in os.listdir(os.path.join(files, "include".format(self.source_Constant_bits_library))):
                 file_to_copy = os.path.join(files, "include".format(self.source_Constant_bits_library), file)
-                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'DORY_network/inc')))
-        if os.listdir(os.path.join(files, "src".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.app_directory, "DORY_network/src")):
+                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'inc')))
+        if os.listdir(os.path.join(files, "src".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.app_directory, "src")):
             for file in os.listdir(os.path.join(files, "src".format(self.source_Constant_bits_library))):
                 file_to_copy = os.path.join(files, "src".format(self.source_Constant_bits_library), file)
-                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'DORY_network/src')))
+                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'src')))
 
     def adding_numbers_to_layers(self):
         for i, node in enumerate(self.HWgraph):
@@ -67,12 +67,10 @@ class C_Parser(Parser_HW_to_C):
             else:
                 node.name = node.name + str(i) 
 
-
-
     def mapping_layers_to_C_files(self):
         print("\nMapping the layers files to their templates and copying the kernels associated.")
         tmpl_dir = os.path.join(os.path.dirname(__file__), 'Templates/layer_templates')
-        out_dir = '{}/DORY_network'.format(self.app_directory)
+        out_dir = '{}'.format(self.app_directory)
         precision_library = self.precision_library
         h_files = []; c_files = []
         for i, node in enumerate(self.HWgraph):
@@ -82,7 +80,8 @@ class C_Parser(Parser_HW_to_C):
                     if node.get_parameter('weight_bits') < 8:
                         precision_library = 'ternary'
             self.copy_backend_files(node)
-            h_layer, c_layer = Layer2D_writer.print_template_layer(node, precision_library, tmpl_dir, out_dir)
+            node.skip_L2_L1 = False
+            h_layer, c_layer = Layer2D_writer.print_template_layer(node, precision_library, tmpl_dir, out_dir, 1)
             h_files.append(h_layer)
             c_files.append(c_layer)
         return h_files, c_files
@@ -95,7 +94,10 @@ class C_Parser(Parser_HW_to_C):
             if node.get_parameter('weight_bits') < 8:
                 ww, ww_dim = self.create_analog_weights(node)
             else:
-                ww, ww_dim = self.create_digital_weights(node)
+                if 'FullyConnected' in node.name:
+                    ww, ww_dim = self.create_digital_FC_weights(node)
+                else:
+                    ww, ww_dim = self.create_digital_weights(node)
             weights_vectors.append(ww)
             weights_dimensions.append(ww_dim)
         tk = OrderedDict([])
@@ -105,12 +107,12 @@ class C_Parser(Parser_HW_to_C):
         root = os.path.dirname(__file__)
         tmpl = Template(filename=os.path.join(root, "Templates/weights_h_template.h"))
         s_h = tmpl.render(**tk)
-        save_string = os.path.join(self.app_directory, 'DORY_network/inc/weights.h') 
+        save_string = os.path.join(self.app_directory, 'inc/weights.h') 
         with open(save_string, "w") as f:
             f.write(s_h)
         tmpl = Template(filename=os.path.join(root, "Templates/weights_definition_h_template.h"))
         s_def = tmpl.render(**tk)
-        save_string = os.path.join(self.app_directory, 'DORY_network/inc/weights_definition.h') 
+        save_string = os.path.join(self.app_directory, 'inc/weights_definition.h') 
         with open(save_string, "w") as f:
             f.write(s_def)
         return s_h, s_def
@@ -128,11 +130,17 @@ class C_Parser(Parser_HW_to_C):
             x_in = x_in.flatten() 
             temp = x_in
         else:
-            x_in_w = int(x_in.shape[0]/(self.HWgraph[0].input_channels*self.HWgraph[0].input_dimensions[0]))
-            x_in = x_in.reshape(self.HWgraph[0].input_channels, self.HWgraph[0].input_dimensions[0], x_in_w)
-            npad = ((0, 0), (0,0), (0, (16 - (x_in_w % 16)) % 16))
-            temp = np.pad(x_in, pad_width=npad, mode='constant', constant_values=0)
-            x_in = temp.flatten()
+            if "FullyConnected" not in self.HWgraph[0].name:
+                x_in_w = int(x_in.shape[0]/(self.HWgraph[0].input_channels*self.HWgraph[0].input_dimensions[0]))
+                x_in = x_in.reshape(self.HWgraph[0].input_channels, self.HWgraph[0].input_dimensions[0], x_in_w)
+                npad = ((0, 0), (0,0), (0, (16 - (x_in_w % 16)) % 16))
+                temp = np.pad(x_in, pad_width=npad, mode='constant', constant_values=0)
+                x_in = temp.flatten()
+            if "FullyConnected" in self.HWgraph[0].name:
+                x_in_nif = 16-int(x_in.shape[0]%16)
+                npad = ((0, x_in_nif))
+                temp = np.pad(x_in, pad_width=npad, mode='constant', constant_values=0)
+                x_in = temp.flatten()
             temp = x_in.reshape(int(x_in.shape[0]/4), 4)
             temp1 = copy.deepcopy(temp)
             temp[:,0] = temp1[:,3] 
@@ -146,7 +154,7 @@ class C_Parser(Parser_HW_to_C):
         root = os.path.dirname(__file__)
         tmpl = Template(filename=os.path.join(root, "Templates/input_h_template.h"))
         s = tmpl.render(**tk)
-        save_string = os.path.join(self.app_directory, 'DORY_network/inc/input.h') 
+        save_string = os.path.join(self.app_directory, 'inc/input.h') 
         with open(save_string, "w") as f:
             f.write(s)
 
@@ -180,15 +188,19 @@ class C_Parser(Parser_HW_to_C):
                         for ch in range(int(np.asarray(node.__dict__[constants[i]]["value"]).shape[0]/16)):
                             for pos_in in [3,2,1,0]:
                                 new_weights.append(node.__dict__[constants[i]]["value"][pos+4*(ch*4+pos_in)])
-                    node.__dict__[constants[i]]["value"] = new_weights
+                    final_weights = []
+                    for ch in range(int((node.output_channels+15)/16)):
+                        for byte in range(4):
+                            final_weights.append(new_weights[(node.output_channels*byte + ch*16):(node.output_channels*byte + ch*16 + 16)])
+                    node.__dict__[constants[i]]["value"] = np.asarray(final_weights).flatten().tolist()
         for batch in np.arange(0, int(np.floor((getattr(node, 'output_channels')+15)/16))):
             for i in [0, 1]:
                 if constants[i]!= 0:
                     if i==0:  
-                        dim = getattr(node, 'input_channels') * 16 * np.prod(getattr(node, 'kernel_shape'))
+                        dim = (getattr(node, 'input_channels')+15)//16*16 * 16 * np.prod(getattr(node, 'kernel_shape'))
                         weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
                     if i==1:  
-                        weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*4):((batch+1)*16*4)]))
+                        weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*int(node.bias_bits/8)):((batch+1)*16*int(node.bias_bits/8))]))
                     save_vector = 1
         for i in [2, 3]:
             if constants[i]!= 0:
@@ -201,21 +213,89 @@ class C_Parser(Parser_HW_to_C):
         else:
             return ["0"], 0
 
+    def create_digital_FC_weights(self, node):
+        constants = [0, 0, 0, 0]
+        for name in node.constant_names:
+            if "weight" in name:
+                constants[0] = name
+            elif "bias" in name:
+                constants[1] = name
+            elif "k" == name:
+                constants[2] = name
+            elif "l" == name:
+                constants[3] = name
+        weights = np.asarray([])
+        save_vector = 0
+        for i in np.arange(4):
+            if constants[i]!= 0:
+                if i==0:
+                    temp = np.asarray(node.__dict__[constants[i]]["value"])
+                    temp = temp.reshape(int(temp.shape[0]/4), 4)
+                    temp1 = copy.deepcopy(temp)
+                    temp[:,0] = temp1[:,3] 
+                    temp[:,1] = temp1[:,2] 
+                    temp[:,2] = temp1[:,1] 
+                    temp[:,3] = temp1[:,0]
+                    node.__dict__[constants[i]]["value"] = temp.flatten()
+                if i==1:
+                    temp = np.asarray(node.__dict__[constants[i]]["value"])
+                    temp = temp.reshape(int(temp.shape[0]/4), 4)
+                    temp1 = copy.deepcopy(temp)
+                    temp[:,0] = temp1[:,3] 
+                    temp[:,1] = temp1[:,2] 
+                    temp[:,2] = temp1[:,1] 
+                    temp[:,3] = temp1[:,0]
+                    node.__dict__[constants[i]]["value"] = temp.flatten()
+                    '''
+                    Bias e' su 32bit:
+                    Si impacchettano i 32bit in 8 valori hex, che noi chiameremo BH[0:7], con MSB alla posizione 0
+                    I valori vengono poi riordinati come: BH[6] BH[7] BH[4] BH[5] BH[2] BH[3] BH[0] BH[1]
+                    Il modo che sono scritti nell'header file segue BH[6] BH[7] BH[4] BH[5] BH[2] BH[3] BH[0] BH[1]
+                    '''
+                    pass
+        for batch in np.arange(0, int(np.floor((getattr(node, 'output_channels')+15)/16))):
+            for i in [0, 1]:
+                if constants[i]!= 0:
+                    if i==0:  
+                        dim = (getattr(node, 'input_channels')+15)//16*16 * 16 * np.prod(getattr(node, 'kernel_shape'))
+                        weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
+                    if i==1:  
+                        weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*int(node.bias_bits/8)):((batch+1)*16*int(node.bias_bits/8))]))
+                    save_vector = 1
+        # for batch, channels_tile in enumerate(np.arange(0, getattr(node, 'output_channels'), node.tiling_dimensions['L1']['weights_dimensions'][0])):
+        #     for i in [0, 1]:
+        #         if constants[i]!= 0:
+        #             if i==0:  
+        #                 dim = node.tiling_dimensions['L1']['weights_dimensions'][0] * getattr(node, 'input_channels') * np.prod(getattr(node, 'kernel_shape'))
+        #                 weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
+        #             if i==1:  
+        #                 weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(channels_tile*int(node.bias_bits/8)):((channels_tile+node.tiling_dimensions['L1']['weights_dimensions'][0])*int(node.bias_bits/8))]))
+        #             save_vector = 1
+        for i in [2, 3]:
+            if constants[i]!= 0:
+                weights = np.concatenate((weights,node.__dict__[constants[i]]["value"]))
 
-    def _compress(self, x, bits):
+        while len(weights) % 4 != 0:
+            weights = np.concatenate((weights, np.asarray([0])))
+        if save_vector == 1:
+            return utils.print_test_vector(weights, 'char'), weights.shape[0]
+        else:
+            return ["0"], 0
+
+    def _compress_analog(self, x, bits):
         compressed = []
-        n_elements_in_byte = 8 // bits
+        n_elements_in_byte = 32 // bits
         i_element_in_byte = 0
         for el in x:
             if i_element_in_byte == 0:
-                compressed.append(el)
+                compressed.append(el << (n_elements_in_byte - i_element_in_byte - 1) * bits)
             else:
-                compressed[-1] += el << i_element_in_byte * bits
+                compressed[-1] += el << (n_elements_in_byte - i_element_in_byte - 1) * bits
 
             i_element_in_byte += 1
             if i_element_in_byte == n_elements_in_byte:
                 i_element_in_byte = 0
-        return np.asarray(compressed, dtype=np.uint8)
+        return np.asarray(compressed, dtype=np.uint32)
 
     def create_analog_weights(self, node):
         constants = [0, 0, 0, 0]
@@ -239,7 +319,7 @@ class C_Parser(Parser_HW_to_C):
                     w_list = ana_enc.flip_weights(w_list, False)
                     w_list = ana_enc.map_weights(w_list)
                     w_list = ana_enc.flatten_list(w_list)
-                    w_list_compressed = self._compress(w_list, 1)
+                    w_list_compressed = self._compress_analog(w_list, 1)
                     node.__dict__[constants[i]]["value"] = w_list_compressed
                     weights = np.concatenate((weights,node.__dict__[constants[i]]["value"]))
                     save_vector = 1
@@ -248,6 +328,6 @@ class C_Parser(Parser_HW_to_C):
                 weights = np.concatenate((weights,node.__dict__[constants[i]]["value"]))
 
         if save_vector == 1:
-            return utils.print_test_vector(weights, 'char'), weights.shape[0]
+            return utils.print_test_vector(weights, 'uint32_t'), weights.shape[0]
         else:
             return ["0"], 0

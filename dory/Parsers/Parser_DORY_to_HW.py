@@ -30,7 +30,7 @@ from dory.Utils.DORY_utils import Printer
 
 class Parser_DORY_to_HW:
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, rules, Pattern_rewriter, supported_nodes, HW_description, network_directory, config_file, Tiler):
+    def __init__(self, graph, rules, Pattern_rewriter, supported_nodes, HW_description, network_directory, config_file, Tiler, n_inputs=1):
         self.supported_nodes = supported_nodes
         self.DORY_Graph = graph
         self.Printer_Frontend = Printer("logs/HW_related")
@@ -39,6 +39,7 @@ class Parser_DORY_to_HW:
         self.HW_description = HW_description
         self.network_directory = network_directory
         self.config_file = config_file
+        self.n_inputs = n_inputs
         HW_node.Tiler = Tiler
 
     def mapping_to_HW_nodes(self):
@@ -153,7 +154,7 @@ class Parser_DORY_to_HW:
     def add_tensors_memory_occupation_and_MACs(self):
         print("\nUpdating memory occupation and MACs of tensors in layers")
         for i, node in enumerate(self.DORY_Graph):
-            if "Convolution" in node.name or "FullyConnected" in node.name or "Addition" in node.name or "Pooling" in node.name:
+            if "Convolution" in node.name or "FullyConnected" in node.name or "Add" in node.op_type or "Pooling" in node.name:
                 node.add_memory_and_MACs()
 
     def adjust_data_layout(self):
@@ -185,7 +186,8 @@ class Parser_DORY_to_HW:
         print("\nDORY Backend: Formatting constants and adding checksums")
         for i, node in enumerate(self.DORY_Graph):
             node.add_checksum_w_integer()
-            node.add_checksum_activations_integer(self.network_directory, i)
+            node.add_checksum_activations_integer(self.network_directory, i, self.n_inputs)
+
 
     def full_graph_parsing(self):
         print("#####################################################")

@@ -62,6 +62,11 @@ class HW_node(DORY_node):
         self.check_sum_w = None
         self.check_sum_in = None
         self.check_sum_out = None
+        self.L3_input = 0
+        try:
+            self.split_ints = HW_description['split_ints']
+        except KeyError:
+            self.split_ints = False
 
     def create_tiling_dimensions(self, previous_node, config_file):
         #  ATTENTION MEMORY L3 --> TILE MEMORY DIMENSION --> Decide how to set. Re-init the whole memory?
@@ -97,20 +102,28 @@ class HW_node(DORY_node):
                             self.__dict__["weights"] = self.__dict__.pop(name)
                             self.constant_names[i] = "weights"
 
-    def _compress(self, x, bits):
+    @staticmethod
+    def _compress(x, bits):
         compressed = []
         n_elements_in_byte = 8 // bits
         i_element_in_byte = 0
-        for el in x:
-            if i_element_in_byte == 0:
-                compressed.append(el.item())
-            else:
-                compressed[-1] += el.item() << i_element_in_byte * bits
+        x_masked = x & ((2**bits) - 1)
+        x_reshaped_masked = x_masked.reshape((-1, n_elements_in_byte))
+        po2 = 2**(np.arange(n_elements_in_byte) * bits)
+        po2 = np.tile(po2, (x_reshaped_masked.shape[0], 1))
+        x_reshaped_masked_scaled = x_reshaped_masked * po2
+        x_out = np.sum(x_reshaped_masked_scaled, axis=1).flatten().astype(np.uint8)
+        return x_out
 
-            i_element_in_byte += 1
-            if i_element_in_byte == n_elements_in_byte:
-                i_element_in_byte = 0
-        return np.asarray(compressed, dtype=np.uint8)
+    @staticmethod
+    def _to_uint8(x, bits):
+        #import ipdb; ipdb.set_trace()
+        n_mult = bits//8
+        x = np.tile(x[:, None], (1, n_mult))
+        shifts = np.tile(8 * np.arange(n_mult), (x.shape[0], 1))
+        x_shift_masked = (x >> shifts) & 255
+        x_flat = x_shift_masked.ravel().astype(np.uint8)
+        return x_flat
 
     def add_checksum_w_integer(self):
         self.check_sum_w = 0
@@ -128,18 +141,9 @@ class HW_node(DORY_node):
             else:
                 self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].flatten()
             # self.__dict__[weight_name+"_raw"] = self.__dict__[weight_name]
-            self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].astype(np.uint8).tolist()
+            self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].astype(np.uint8)
             if self.weight_bits != 8:
-                # TODO: rewrite this in a vectorized way without for loop to massively speed up this routine
-                temp = []
-                z = 0
-                for i_x, _ in enumerate(self.__dict__[weight_name]["value"]):
-                    if z % int(8 / self.weight_bits) == 0:
-                        temp.append(self.__dict__[weight_name]["value"][i_x] & (2**self.weight_bits-1))
-                    else:
-                        temp[-1] += (self.__dict__[weight_name]["value"][i_x]& (2**self.weight_bits-1)) << self.weight_bits * (z % int(8 / self.weight_bits))
-                    z+=1
-                self.__dict__[weight_name]["value"] = temp
+                self.__dict__[weight_name]["value"] = self._compress(self.__dict__[weight_name]["value"], self.weight_bits)
             self.check_sum_w += sum(self.__dict__[weight_name]["value"])
 
         bias_name = ""
@@ -154,53 +158,63 @@ class HW_node(DORY_node):
             #### TO CHECK ORDER OF BIASES
             return [np.uint8((el >> shift) & 255) for el in x for shift in range(0, bits, 8)]
 
+        #import ipdb; ipdb.set_trace()
         if bias_name in self.__dict__:
-            self.__dict__[bias_name]["value"] = to_byte(self.__dict__[bias_name]['value'], self.bias_bits)
+            self.__dict__[bias_name]["value"] = self._to_uint8(self.__dict__[bias_name]['value'].astype(np.int64).ravel(), self.bias_bits)
             self.check_sum_w += sum(self.__dict__[bias_name]["value"])
 
         if 'k' in self.__dict__:
-            self.k["value"] = to_byte(self.k['value'], self.constant_bits)
+            self.k["value"] = self._to_uint8(self.k['value'].astype(np.int64).ravel(), self.constant_bits)
             self.check_sum_w += sum(self.k["value"])
 
         if 'l' in self.__dict__:
-            self.l["value"] = to_byte(self.l['value'], self.constant_bits)
+            self.l["value"] = self._to_uint8(self.l['value'].astype(np.int64).ravel(), self.constant_bits)
             self.check_sum_w += sum(self.l["value"])
 
-    def add_checksum_activations_integer(self, load_directory, node_number):
+    def add_checksum_activations_integer(self, load_directory, node_number, n_inputs=1):
         ###########################################################################
         ###### SECTION 4: GENERATE CHECKSUM BY USING OUT_LAYER{i}.TXT FILES  ######
         ###########################################################################
-        if node_number == 0:        
-            try:
+        self.check_sum_in = []
+        self.check_sum_out = []
+        for in_idx in range(n_inputs):
+            if node_number == 0:
+                infile = 'input.txt' if n_inputs == 1 else f'input_{in_idx}.txt'
                 try:
-                    x = np.loadtxt(os.path.join(load_directory, 'input.txt'), delimiter=',', dtype=np.uint8, usecols=[0])
+                    try:
+                        x = np.loadtxt(os.path.join(load_directory, infile), delimiter=',', dtype=np.uint8, usecols=[0])
+                    except ValueError:
+                        x = np.loadtxt(os.path.join(load_directory, infile), delimiter=',', dtype=np.float, usecols=[0]).astype(np.int64)
+                    x = x.ravel()
+                    if self.input_activation_bits <= 8:
+                        x = self._compress(x, self.input_activation_bits)
+                except FileNotFoundError:
+                    print("========= WARNING ==========")
+                    print(f"Input file {os.path.join(load_directory, 'input.txt')} not found; generating random inputs!")
+                    x = np.random.randint(low=0, high=2**8 - 1,
+                                             size=self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
+                                             dtype=np.uint8)
+            else:
+                infile = f'out_layer{node_number-1}.txt' if n_inputs == 1 else f'out_{in_idx}_layer{node_number-1}.txt'
+                try:
+                    x = np.loadtxt(os.path.join(load_directory, infile), delimiter=',', dtype=np.int64, usecols=[0])
                 except ValueError:
-                    x = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number}.txt'), delimiter=',', dtype=np.float, usecols=[0])
-                x = x.ravel()
-            except FileNotFoundError:
-                print("========= WARNING ==========")
-                print(f"Input file {os.path.join(load_directory, 'input.txt')} not found; generating random inputs!")
-                x = np.random.randint(low=0, high=2**8 - 1,
-                                         size=self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
-                                         dtype=np.uint8)
-        else:
+                    x = np.loadtxt(os.path.join(load_directory, infile), delimiter=',', dtype=np.float, usecols=[0]).astype(np.int64)
+                if self.input_activation_bits <= 8:
+                    x = self._compress(x.ravel(), self.input_activation_bits)
+
+            self.check_sum_in.append(int(sum(x)))
+            outfile = f'out_layer{node_number}.txt' if n_inputs == 1 else f'out_{in_idx}_layer{node_number}.txt'
             try:
-                x = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number-1}.txt'), delimiter=',', dtype=np.int64, usecols=[0])
+                y = np.loadtxt(os.path.join(load_directory, outfile), delimiter=',', dtype=np.int64, usecols=[0])
             except ValueError:
-                x = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number-1}.txt'), delimiter=',', dtype=np.float, usecols=[0])
-            if self.input_activation_bits <= 8:
-                x = self._compress(x.ravel(), self.input_activation_bits)
+                y = np.loadtxt(os.path.join(load_directory, outfile), delimiter=',', dtype=np.float, usecols=[0]).astype(np.int64)
+            if self.output_activation_bits <= 8:
+                y = self._compress(y.ravel(), self.output_activation_bits)
+            elif self.split_ints and self.output_activation_bits > 8:
+                y = self._to_uint8(y.ravel(), self.output_activation_bits)
 
-        self.check_sum_in = int(sum(x))
-        try:
-            y = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number}.txt'), delimiter=',', dtype=np.int64, usecols=[0])
-        except ValueError:
-            y = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number}.txt'), delimiter=',', dtype=np.float, usecols=[0])
-
-        if self.output_activation_bits <= 8:
-            y = self._compress(y.ravel(), self.output_activation_bits)
-
-        self.check_sum_out = int(y.sum())
+            self.check_sum_out.append(int(y.sum()))
 
     def export_to_dict(self):
         node_dict = {}

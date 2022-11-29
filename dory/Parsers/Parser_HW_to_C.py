@@ -26,10 +26,12 @@ import os
 import dory.Utils.Templates_writer.Network_template_writer as Network_writer
 import dory.Utils.Templates_writer.Makefile_template_writer as Makefile_writer
 
+from dory.Parsers.HW_node import HW_node
+
 
 class Parser_HW_to_C:
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, network_directory, HW_description, verbose_level, perf_layer, save_string, app_directory):
+    def __init__(self, graph, network_directory, HW_description, verbose_level, perf_layer, save_string, app_directory, n_inputs = 1):
         self.HWgraph = graph
         self.HW_description = HW_description
         self.verbose_level = verbose_level
@@ -37,6 +39,11 @@ class Parser_HW_to_C:
         self.save_string_for_Makefile = save_string
         self.network_directory = network_directory
         self.app_directory = app_directory
+        self.inc_dir_rel = "inc"
+        self.src_dir_rel = "src"
+        self.hex_dir_rel = "hex"
+        self.n_inputs = n_inputs
+
 
     def adding_numbers_to_layers(self):
         for i, node in enumerate(self.HWgraph):
@@ -50,7 +57,9 @@ class Parser_HW_to_C:
             self.config_file,
             self.verbose_level,
             self.perf_layer,
-            self.app_directory)
+            self.app_directory,
+            self.inc_dir_rel,
+            self.src_dir_rel)
 
     def mapping_makefile(self):
         print("\nGenerating the Makefile.")
@@ -72,9 +81,9 @@ class Parser_HW_to_C:
         for file in os.listdir(utils_files_dir):
             file_to_copy = os.path.join(utils_files_dir, file)
             if file_to_copy[-1] == 'c':
-                os.system('cp "{}" {}/DORY_network/src'.format(file_to_copy, self.app_directory))
-            elif file_to_copy[-1] == 'h': 
-                os.system('cp "{}" {}/DORY_network/inc'.format(file_to_copy, self.app_directory))
+                os.system('cp -L "{}" {}'.format(file_to_copy, self.src_dir))
+            elif file_to_copy[-1] == 'h':
+                os.system('cp -L "{}" {}'.format(file_to_copy, self.inc_dir))
 
     def create_hex_weights_files(self):
         print("\nGenerating .hex weight files.")
@@ -97,27 +106,43 @@ class Parser_HW_to_C:
                 weights = np.concatenate((weights, np.asarray([0])))
             if weights.shape[0] != 0:
                 string_layer = node.name + "_weights.hex"
-                save_s = '{}/DORY_network/'.format(self.app_directory) + string_layer
-                with open(save_s, 'wb') as f:
-                    for l in weights.astype('uint8').flatten():
-                        f.write(bytes((l,)))
+                save_s = os.path.join(self.hex_dir, string_layer)
+                weights.astype('uint8').tofile(save_s)
 
-    def create_hex_input(self):    
+    def create_hex_input(self):
         print("\nGenerating .hex input file.")
-        try:
-            x_in = np.loadtxt(os.path.join(self.network_directory, 'input.txt'), delimiter=',', dtype=np.uint8, usecols=[0])
-            x_in = x_in.flatten()
-        except FileNotFoundError:
-            print(f"========= WARNING ==========\nInput file {os.path.join(self.network_directory, 'input.txt')} not found; generating random inputs!")
-            x_in = np.random.randint(low=0, high=2*8 - 1,
-                                     size=self.group * self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
-                                     dtype=np.uint8)
+        for in_idx in range(self.n_inputs):
+            infile = 'input.txt' if self.n_inputs == 1 else f'input_{in_idx}.txt'
+            try:
+                x_in = np.loadtxt(os.path.join(self.network_directory, infile), delimiter=',', dtype=np.uint8, usecols=[0])
+                x_in = x_in.flatten()
+            except FileNotFoundError:
+                print(f"========= WARNING ==========\nInput file {os.path.join(self.network_directory, 'input.txt')} not found; generating random inputs!")
 
-        string_layer = "inputs.hex"
-        save_s = '{}/DORY_network/'.format(self.app_directory) + string_layer
-        with open(save_s, 'wb') as f:
-            for i in x_in:
-                f.write(bytes((i,)))
+                x_in = np.random.randint(low=0, high=2*8,
+                                         size=self.group * self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
+                                         dtype=np.uint8)
+
+            in_node = self.HWgraph[0]
+            in_bits = in_node.input_activation_bits
+            if in_bits != 8:
+                x_in = HW_node._compress(x_in, in_bits)
+
+            string_layer = "inputs.hex" if self.n_inputs == 1 else f"inputs_{in_idx}.hex"
+            save_s = os.path.join(self.hex_dir, string_layer)
+            x_in.astype('uint8').tofile(save_s)
+
+    @property
+    def src_dir(self):
+        return os.path.join(self.app_directory, self.src_dir_rel)
+
+    @property
+    def inc_dir(self):
+        return os.path.join(self.app_directory, self.inc_dir_rel)
+
+    @property
+    def hex_dir(self):
+        return os.path.join(self.app_directory, self.hex_dir_rel)
 
     def full_graph_parsing(self):
         print("#####################################################")
@@ -126,9 +151,9 @@ class Parser_HW_to_C:
         print("#####################################################")
         os.system('rm -rf {}'.format(self.app_directory))
         os.system('mkdir {}'.format(self.app_directory))
-        os.system('mkdir {}/DORY_network'.format(self.app_directory))
-        os.system('mkdir {}/DORY_network/inc'.format(self.app_directory))
-        os.system('mkdir {}/DORY_network/src'.format(self.app_directory))
+        os.system('mkdir {}'.format(self.src_dir))
+        os.system('mkdir {}'.format(self.inc_dir))
+        os.system('mkdir {}'.format(self.hex_dir))
         self.adding_numbers_to_layers()
         self.mapping_network_to_C_file()
         self.mapping_makefile()
@@ -136,4 +161,5 @@ class Parser_HW_to_C:
         self.copy_utils_files()
         self.create_hex_weights_files()
         self.create_hex_input()
+        print("Done!")
 

@@ -76,7 +76,7 @@ def print_template_layer_L3(node, tmpl_dir, out_dir):
     tk['conv_overlap1'] = conv_overlap1
     tk['conv_overlap2'] = conv_overlap2
     tk['padding'] = padding_top
-    if (node.tiling_dimensions["L3"]["input_dimensions"] != node.tiling_dimensions["L2"]["input_dimensions"]):
+    if (node.L3_input):
         tk['input_L3'] = 1
         factor_h_in = int(h_out / h_out_L2) 
     else:
@@ -172,8 +172,9 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
             tk['first_layer'] = 1
     else:
         tk['first_layer'] = 0
+    tk['node'] = node
     tk['sdk'] = node.HW_description["software development kit"]["name"]
-    tk['number_of_clusters'] = node.HW_description["number_of_clusters"] if "number_of_clusters" in node.HW_description.keys() else 1
+    tk['number_of_clusters'] = node.HW_description["HW specific parameters"]["clusters"] if "clusters" in node.HW_description["HW specific parameters"].keys() else 1
     tk['optional_type'] = layer_type
     tk['func_name'] = node.name
     tk['flag_DW'] = 1 if node.group > 1 else 0
@@ -181,7 +182,7 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     tk['FLAG_BATCHNORM'] = 1 if 'k' in node.constant_names else 0
     tk['has_bias'] = int(len([1 for name in node.constant_names if "bias" in name])>0)
     tk['FLAG_RELU'] = 1 if 'outshift' in node.constant_names else 0
-    tk['type'] = "char" if node.input_activation_type in ["int", "uint"] else "float"
+    tk['type'] = f"{node.input_activation_type}8_t" if node.input_activation_type in ["int", "uint"] else "float"
     tk['conv_overlap1'] = conv_overlap1
     tk['conv_overlap2'] = conv_overlap2
     tk['padding_top'] = padding_top
@@ -294,6 +295,7 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     tk['fs1'] = fs1
     tk['fs2'] = fs2
     tk['W_data_size_byte'] = ds_W
+    tk['b_data_size_byte'] = ds_bias
     tk['W_tile_size_nof'] = tile_n_out 
     if tk['has_bias'] == 1:
         tk['b_size_byte'] = int(math.ceil(n_out * ds_bias / 8.0))
@@ -435,6 +437,9 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     # only used for avg pool layers
     tk['out_add'] = node.outadd["value"] if 'outadd' in node.constant_names else 0
     tk['out_mul'] = node.outmul["value"] if 'outmul' in node.constant_names else 1
+
+    tk['conv1d'] = node.conv1d
+    tk['dilations'] = node.dilations
 
     if "Addition" not in node.name and "Pool" not in node.name:
         tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_conv_template.c"))

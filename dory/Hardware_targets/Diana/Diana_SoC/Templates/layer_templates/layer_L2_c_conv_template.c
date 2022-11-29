@@ -33,30 +33,37 @@ void ${func_name}(layer* layer_i)
   unsigned int l2_x_2 =       layer_i->L2_input_add;
   unsigned int l2_y =         layer_i->L2_output;
   unsigned int l2_W =         layer_i->L2_weights;
-% if optional_type == "ternary":
+% if W_data_size_byte == 2:
   unsigned int l2_BN =        layer_i->L2_weights + ${int((64 if nif < 64 else nif) * (128 if nof < 128 else nof) * fs1 * fs2 * W_data_size_byte / 8)};
 % endif
   unsigned int out_shift =    layer_i->out_shift;
-
+  // check for ternary case how the output is written in L1. Check also the dimension of l1_y for cases where dimensions are not multiple of 16
+% if int(func_name[-1]) % 2 == 0 or node.skip_L2_L1 == False:
   unsigned int l1_x       = 0x0;
-  unsigned int l1_y       = l1_x + ${int(l1_y_offset/32)*32+32};
+% if W_data_size_byte == 2:
+  // unsigned int l1_y       = 131072 - ${int((l1_W_offset - l1_y_offset)/32)*32+32}*2;
+  // NOW IT IS FIXED: TO ADJUST!!!
+  unsigned int l1_y       = 0x0 + 16*512*4; 
+% else:
+  // unsigned int l1_y       = 131072 - ${int((l1_W_offset - l1_y_offset)/32)*32+32};
+  unsigned int l1_y       = l1_x + ${int((l1_y_offset)/32)*32+32}; 
+% endif
+% else:
+% if W_data_size_byte == 2:
+  unsigned int l1_x       = 131072 - ${int((l1_y_offset)/32)*32+32}*2;
+% else:
+  unsigned int l1_x       = 131072 - ${int((l1_y_offset)/32)*32+32};
+% endif
+  unsigned int l1_y       = 0x0;
+% endif
   unsigned int l1_weights = 0x0;
-
-  // perf measurement begin
-  volatile rt_perf_t *perf;
-  perf = rt_alloc(RT_ALLOC_L2_CL_DATA, sizeof(rt_perf_t));
-
   /////////////////////
   // DMA declaration //
   /////////////////////
   uint32_t dory_dma_channel = dory_dma_allocate();
   volatile DMA_copy DMA_copy_x, DMA_copy_y;
 
-  % if flag_DW == 1:
-  DMA_copy_x.hwc_to_chw = 1;
-  % else:
   DMA_copy_x.hwc_to_chw = 0;
-  % endif  
   DMA_copy_x.stride_2d = ${int(x_w * x_h * x_data_size_byte / 8.0)};
   DMA_copy_x.stride_1d = ${int(x_w * x_data_size_byte / 8.0)};
   DMA_copy_x.dir = 0;
@@ -95,52 +102,62 @@ void ${func_name}(layer* layer_i)
 % endif
   // tile loop nest
   for(iter=0; iter < total_tiles; iter++) {
-
-    int perf_cyc, perf_cyc1, perf_cyc2;
-    rt_perf_init(perf);
-    rt_perf_conf(perf, (1<<RT_PERF_CYCLES));
-    rt_perf_stop(perf);
-    rt_perf_start(perf);
-
-
     // check if last in any dimension
-    x_tile_size_nif = (_i_nif+1   == ${tile_dim_nif}) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
+    x_tile_size_nif = (_i_nif+1   == ${tile_dim_nif}) ? ${(x_tile_size_nif_last + 15) // 16 * 16} : ${(x_tile_size_nif + 15) // 16 * 16};
     x_tile_size_h   = (_i_h+1     == ${tile_dim_h})   ? ${x_tile_size_h_last} : ${x_tile_size_h};
-    x_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${x_tile_size_w_last} : ${x_tile_size_w};
+% if W_data_size_byte == 8 and 'Gemm' not in optional:
+    x_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${(x_tile_size_w_last + 15) // 16 * 16} : ${(x_tile_size_w + 15) // 16 * 16};
+    y_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${(y_tile_size_w_last + 15) // 16 * 16} : ${(y_tile_size_w + 15) // 16 * 16};
+% else:
+    x_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${x_tile_size_w_last} : ${x_tile_size_w };
+    y_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${(y_tile_size_w_last)} : ${(y_tile_size_w)};
+% endif
     x_tile_size_byte = x_tile_size_nif*x_tile_size_h*x_tile_size_w*${x_data_size_byte}/8;
-    x_length_nif_byte = (_i_nif+1 == ${tile_dim_nif})   ? ${x_tile_size_nif_byte_last} : ${x_tile_size_nif_byte};
+    x_length_nif_byte = (_i_nif+1 == ${tile_dim_nif})   ? ${(x_tile_size_nif_byte_last + 15) // 16 * 16} : ${(x_tile_size_nif_byte + 15) // 16 * 16};
     y_tile_size_h   = (_i_h+1     == ${tile_dim_h})   ? ${y_tile_size_h_last} : ${y_tile_size_h};
-    y_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${y_tile_size_w_last} : ${y_tile_size_w};
-    y_length_nof_byte = (_i_nof+1   == ${tile_dim_nof}) ? ${W_tile_size_nof_last} : ${W_tile_size_nof};
-    W_tile_size_nof = (_i_nof+1   == ${tile_dim_nof}) ? ${(W_tile_size_nof_last + 15) // 16 * 16} : ${W_tile_size_nof};
+% if W_data_size_byte == 8:
+    y_length_nof_byte = (_i_nof+1   == ${tile_dim_nof}) ? ${(W_tile_size_nof_last + 15) // 16 * 16} : ${(W_tile_size_nof + 15) // 16 * 16};
+    W_tile_size_nof = (_i_nof+1   == ${tile_dim_nof}) ? ${(W_tile_size_nof_last + 15) // 16 * 16} : ${(W_tile_size_nof + 15) // 16 * 16};
+% else:
+    y_length_nof_byte = (_i_nof+1   == ${tile_dim_nof}) ? ${(W_tile_size_nof_last)} : ${(W_tile_size_nof)};
+    W_tile_size_nof = (_i_nof+1   == ${tile_dim_nof}) ? ${(W_tile_size_nof_last)} : ${(W_tile_size_nof)};
+% endif
 
-% if optional_type == "ternary":
-    int block_number   = x_length_nif_byte > 64 ? 4 : (int)((x_length_nif_byte+15)/16);
-    int channel_number = (int)((x_length_nif_byte+63)/64);
-    for (int c_index = 0; c_index < block_number; c_index++)
+% if node.previous_layer_tiles > 1 or node.skip_L2_L1 == False:
+% if W_data_size_byte == 2:
     {
-      int block_dimension = (int)((x_tile_size_h * x_tile_size_w * channel_number + 511) / 512);
-      for (int blocks_index = 0; blocks_index < block_dimension; blocks_index++)
+      int channel_number = (int)((x_length_nif_byte+63)/64);
+      int block_number = (int)((x_tile_size_h * x_tile_size_w * channel_number + 511) / 512);
+      for (int blocks_index = 0; blocks_index < block_number; blocks_index++)
       {
         int byte_transfer = 0; 
-        if (blocks_index == (block_dimension-1))
-          byte_transfer = 16 * (((channel_number * x_tile_size_h * x_tile_size_w) % 512) ? ((channel_number * x_tile_size_h * x_tile_size_w) % 512) : 512);
+        if (blocks_index == (block_number-1))
+          byte_transfer = 16 * (((x_tile_size_h * x_tile_size_w * channel_number) % 512) ? ((x_tile_size_h * x_tile_size_w * channel_number) % 512) : 512);
         else
           byte_transfer = 16 * 512;
-        DMA_copy_x.ext = l2_x + blocks_index * 16 * 512 + c_index * 16 * channel_number * x_tile_size_h * x_tile_size_w;
-        DMA_copy_x.loc = l1_x + blocks_index * 4 * 16 * 512 + c_index * 16 * 512;
-        DMA_copy_x.number_of_2d_copies = 1;
-        DMA_copy_x.number_of_1d_copies = 1;
-        DMA_copy_x.length_1d_copy = byte_transfer;
-        dory_dma_memcpy_async_analog(DMA_copy_x); 
+        memcpy_analog(l2_x + blocks_index*byte_transfer, l1_x+blocks_index*16*512, byte_transfer * 4, DMA_copy_x.dir, 4 );
         dory_dma_barrier_analog(DMA_copy_x);
       }
     }
+% elif W_data_size_byte == 8:
+    int pad_offset_h=0, pad_offset_w=0;
+    if(_i_h > 0)
+      pad_offset_h = ${padding_top};
+    if(_i_w > 0)
+      pad_offset_w = ${padding_left};
+    uint32_t l2_x_tile = dory_get_tile_3d(l2_x, _i_nif, _i_h, _i_w, ${x_tile_size_nif}, ${x_tile_size_h}, ${x_tile_size_w}, ${x_h}, ${x_w},0, ${conv_overlap1}, ${conv_overlap2}, 0, pad_offset_h, pad_offset_w, ${x_data_size_byte});
+    DMA_copy_x.ext = l2_x_tile;
+    DMA_copy_x.loc = l1_x;
+    DMA_copy_x.number_of_2d_copies = x_length_nif_byte;
+    DMA_copy_x.number_of_1d_copies = x_tile_size_h;
+    DMA_copy_x.length_1d_copy = x_tile_size_w;
+    dory_dma_memcpy_async_digital(DMA_copy_x);
+    dory_dma_barrier_digital(DMA_copy_x); 
 % endif
-    
+% endif
 
     Layer_parameters kernel;
-% if optional_type == "ternary":
+% if W_data_size_byte == 2:
     kernel.padding = 0x0000;
     if (_i_h == 0)
       kernel.padding  = ${padding_top}<<2;
@@ -150,7 +167,7 @@ void ${func_name}(layer* layer_i)
       kernel.padding += ${padding_bottom};
     if (_i_w == 0)
       kernel.padding += ${padding_left}<<6;
-% elif optional_type == "8bit":
+% elif W_data_size_byte == 8:
     kernel.padding = 0x0000;
     if (_i_h == 0)
       kernel.padding  = ${padding_top}<<8;
@@ -171,56 +188,43 @@ void ${func_name}(layer* layer_i)
     kernel.activation_function = 0;
     kernel.output_shift = ${out_shift};
     kernel.dilation = 1;
-% if optional_type == "8bit":
+% if W_data_size_byte == 8:
     kernel.ox = y_tile_size_w;
     kernel.stride = ${1 if stride > 1 else 0};
-% elif optional_type == "ternary":
+% elif W_data_size_byte == 2:
     kernel.ox_unroll = 1;
-    /*for (int i = 0; i < 3; i++)
+    /*for (int i = 0; i < 2; i++)
     {
-      if (((kernel.ox_unroll * 2 * kernel.k) <= 512) && ((64 * ${fs2} * (${fs1} + kernel.ox_unroll - 1)) <= 1152))
+      if (((kernel.ox_unroll * 2 * kernel.k) <= 512) && ((kernel.c * ${fs2} * (${fs1} + kernel.ox_unroll * 2 - 1)) <= 1152))
         kernel.ox_unroll = kernel.ox_unroll * 2;
-      }
     }*/
     kernel.stride = ${stride};
     kernel.ox = (int) y_tile_size_w / kernel.ox_unroll;
 % endif
-    rt_perf_stop(perf);
-    rt_perf_save(perf);
-    perf_cyc = rt_perf_get(perf, RT_PERF_CYCLES);
-    rt_perf_reset(perf);
-
-    rt_perf_init(perf);
-    rt_perf_conf(perf, (1<<RT_PERF_CYCLES));
-    rt_perf_stop(perf);
-    rt_perf_start(perf);
-
-    int pad_offset_h=0, pad_offset_w=0;
-    if(_i_h > 0)
-      pad_offset_h = ${padding_top};
-    if(_i_w > 0)
-      pad_offset_w = ${padding_left};
-    uint32_t l2_x_tile = dory_get_tile_3d(l2_x, _i_nif, _i_h, _i_w, ${x_tile_size_nif}, ${x_tile_size_h}, ${x_tile_size_w}, ${x_h}, ${x_w},0, ${conv_overlap1}, ${conv_overlap2}, 0, pad_offset_h, pad_offset_w, ${x_data_size_byte});
-% if optional_type == "8bit":
+    uint32_t l2_W_tile = l2_W + _i_nof * ${W_tile_size_nof * int((nif + 15) // 16 * 16 * fs1 * fs2 + b_data_size_byte / 8)};
+% if W_data_size_byte == 8:
     dory_cores_barrier_digital();
-    digital_conv_2d(l2_x_tile, l1_x, l2_W, l1_weights, l1_y, &kernel);
+% if 'Gemm' in optional: 
+    digital_fully_connected(l2_x_tile, l1_x, l2_W_tile, l1_weights, l1_y, &kernel);
+% elif flag_DW == 1:
+    digital_depthwise_conv_2d(l2_x_tile, l1_x, l2_W_tile, l1_weights, l1_y, &kernel);
+% elif flag_DW == 0: 
+    digital_conv_2d(l2_x_tile, l1_x, l2_W_tile, l1_weights, l1_y, &kernel);
+% endif 
     dory_cores_barrier_digital();
-% elif optional_type == "ternary":
+% elif W_data_size_byte == 2:
     dory_cores_barrier_analog();
-    analog_conv_2d(l2_x_tile, l1_x, l2_W, l2_BN, l1_weights, l1_y, &kernel);
+% if 'Gemm' in optional: 
+    analog_fully_connected(l2_x, l1_x, l2_W_tile, l1_weights, l1_y, &kernel);
+% elif flag_DW == 1:
+    analog_depthwise_conv_2d(l2_x, l1_x, l2_W_tile, l2_BN, l1_weights, l1_y, &kernel);
+% elif flag_DW == 0: 
+    analog_conv_2d(l2_x, l1_x, l2_W_tile, l2_BN, l1_weights, l1_y, &kernel);
+% endif 
     dory_cores_barrier_analog();
 % endif
 
-    rt_perf_stop(perf);
-    rt_perf_save(perf);
-    perf_cyc1 = rt_perf_get(perf, RT_PERF_CYCLES);
-    rt_perf_reset(perf);
-
-    rt_perf_init(perf);
-    rt_perf_conf(perf, (1<<RT_PERF_CYCLES));
-    rt_perf_stop(perf);
-    rt_perf_start(perf);
-
+    uint32_t l2_y_tile = dory_get_tile_3d(l2_y, _i_nof, _i_h, _i_w, ${W_tile_size_nof}, ${y_tile_size_h}, ${y_tile_size_w}, ${y_h}, ${y_w}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
     _i_nof_pre = _i_nof;
     _i_nif_pre = _i_nif;
     _i_h_pre   = _i_h;
@@ -250,25 +254,32 @@ void ${func_name}(layer* layer_i)
     }
   % endif
 
-    DMA_copy_y.ext = l2_y;
+% if tile_dim_nof * tile_dim_nif * tile_dim_h * tile_dim_w > 1 or node.branch_out == 1 or node.skip_L2_L1 == False:
+% if W_data_size_byte == 2:
+    {
+      int channel_number = (int)((y_length_nof_byte+63)/64);
+      int block_number = (int)((y_tile_size_h * y_tile_size_w * channel_number + 511) / 512);
+      for (int blocks_index = 0; blocks_index < block_number; blocks_index++)
+      {
+        int byte_transfer = 0; 
+        if (blocks_index == (block_number-1))
+          byte_transfer = 16 * (((y_tile_size_h * y_tile_size_w * channel_number) % 512) ? ((y_tile_size_h * y_tile_size_w * channel_number) % 512) : 512);
+        else
+          byte_transfer = 16 * 512;
+        memcpy_analog(l2_y + blocks_index*byte_transfer, l1_y+blocks_index*16*512, byte_transfer * 4, DMA_copy_y.dir, 4 );
+        dory_dma_barrier_analog(DMA_copy_y);
+      }
+    }
+% elif W_data_size_byte == 8:
+    DMA_copy_y.ext = l2_y_tile;
     DMA_copy_y.loc = l1_y;
     DMA_copy_y.number_of_2d_copies = y_length_nof_byte;
     DMA_copy_y.number_of_1d_copies = y_tile_size_h;
     DMA_copy_y.length_1d_copy = y_tile_size_w;
-% if optional_type == "8bit":
     dory_dma_memcpy_async_digital(DMA_copy_y);
     dory_dma_barrier_digital(DMA_copy_y); 
-% elif optional_type == "ternary":
-    dory_dma_memcpy_async_analog(DMA_copy_y); 
-    dory_dma_barrier_analog(DMA_copy_y);
 % endif
-    
-    rt_perf_stop(perf);
-    rt_perf_save(perf);
-    perf_cyc2 = rt_perf_get(perf, RT_PERF_CYCLES);
-    rt_perf_reset(perf);
+% endif
   }
-
-
   dory_dma_deallocate(dory_dma_channel);
 }

@@ -90,25 +90,46 @@ def flatten_list(l):
                 flat_l.append(i)
         return flatten_list(flat_l)
 
+# def _padd_C(w):
+#     K  = len(w[0][0])
+#     C  = int(len(w[0])/9)
+#     FX = 3
+#     FY = 3
+#     #padding along C in case less than 1152 rows are copied. We want always 1152 rows copied inside the analog accelerator
+#     wt = []
+#     if (C<128):
+#         wg=[]
+#         print("Need for padding along C detected...")
+#         for i in range(FX*FY):
+#             for c in range(128):
+#                 wk = []
+#                 for k in range(K):
+#                     if (c<C):
+#                         wk.append(w[0][i*C+c][k])
+#                     else:
+#                         wk.append(0)
+#                 wg.append(wk)
+#         wt.append(wg)
+#     else:
+#         wt = w
+#     return wt
+
 def _padd_C(w):
     K  = len(w[0][0])
-    C  = int(len(w[0])/9)
-    FX = 3
-    FY = 3
-    #padding along C in case less than 64 in channels
+    C  = int(len(w[0]))
+    #padding along C in case less than 1152 rows are copied. We want always 1152 rows copied inside the analog accelerator
     wt = []
-    if (C<64):
+    if (C%288!=0):
         wg=[]
         print("Need for padding along C detected...")
-        for i in range(FX*FY):
-            for c in range(64):
-                wk = []
-                for k in range(K):
-                    if (c<C):
-                        wk.append(w[0][i*C+c][k])
-                    else:
-                        wk.append(0)
-                wg.append(wk)
+        for c in range(int((C+287)/288)*288):
+            wk = []
+            for k in range(K):
+                if (c<C):
+                    wk.append(w[0][c][k])
+                else:
+                    wk.append(0)
+            wg.append(wk)
         wt.append(wg)
     else:
         wt = w
@@ -116,16 +137,14 @@ def _padd_C(w):
 
 def _padd_K(w):
     K  = len(w[0][0])
-    C  = int(len(w[0])/9)
-    FX = 3
-    FY = 3
+    C  = int(len(w[0]))
     wt = []
-    if (K<128):
+    if (K%128!=0):
         wg=[]
         print("Need for padding along K detected...")
-        for c in range(C*FX*FY):    #total amount of lines
+        for c in range(C):    #total amount of lines
             wk = []
-            for i in range(128):     #single line
+            for i in range(int((K+127)/128)*128):     #single line parallelism on 16 * 16 bits. Multiple of 512 weights are copied.
                 if (i<K):
                     wk.append(w[0][c][i])
                 else:
@@ -150,6 +169,5 @@ if __name__ == '__main__':
     w_list = pad(w, True, True)
     w_list = mirror_rows(w_list)
     w_list = flip_weights(w_list, False)
-    import pdb;pdb.set_trace()
     w_list = map_weights(w_list)
     w_list = flatten_list(w_list)

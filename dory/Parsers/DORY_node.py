@@ -46,10 +46,14 @@ class DORY_node:
         self.bias_bits = None
         self.output_activation_bits = None
         self.input_activation_bits = None
+        self.second_input_activation_bits = None
         self.weight_type = None
         self.constant_type = None
         self.output_activation_type = None
         self.input_activation_type = None
+        self.second_input_activation_type = None
+        self.n_test_inputs = None
+        self.conv1d = None
         self.min = None
         self.max = None
 
@@ -176,7 +180,7 @@ class DORY_node:
         node_dict["attribute"] = []
         added_parameters = ["name", "input_indexes", "constant_names", "output_index", "op_type"]
         for key, value in self.__dict__.items():
-            if not isinstance(value, np.ndarray) and not isinstance(value,str) and not isinstance(value,dict) and not isinstance(value,type(None)) and key not in added_parameters:
+            if not isinstance(value, np.ndarray) and not isinstance(value,str) and not isinstance(value,dict) and not isinstance(value,type(None)) and key not in added_parameters and not isinstance(value, bool):
                 node_dict["attribute"].append({"name": key, "ints": ([str(value)] if not isinstance(value,list) else [str(v) for v in value])})
         return node_dict
 

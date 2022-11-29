@@ -4,7 +4,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -34,17 +34,18 @@ def print_template_Makefile(
         if "Conv" in node.name or "FullyConnected" in node.name:
             file_list_w.append(node.name+"_weights.hex")
 
+    tk['n_inputs'] = graph[0].n_test_inputs
     tk['layers_w'] = file_list_w
     tk['sdk'] = HW_description["software development kit"]["name"]
-<<<<<<<< HEAD:Utils/Templates_writer/Makefile_template_writer.py
-    root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, os.pardir))
-    tmpl_dir = os.path.join(root, 'Hardware-targets', HW_description['name'], 'Templates')
-    # root = os.path.dirname(__file__)
-    tmpl = Template(filename=os.path.join(tmpl_dir, "Makefile_template"))
-========
-    root = os.path.dirname(__file__)
+    tk['do_flash'] = HW_description["memory"]["levels"] > 2
+    try:
+        blocking_dma_transfers = HW_description['blocking_dma_transfers']
+    except KeyError:
+        print("Makefile template writer: key 'always_blocking_dma_transfers' not found in HW description, using non-blocking transfers!")
+        blocking_dma_transfers = False
+    tk['blocking_dma'] = blocking_dma_transfers
+    root = os.path.realpath(os.path.dirname(__file__))
     tmpl = Template(filename=os.path.join(root, "../../Hardware_targets", HW_description["name"], "Templates/Makefile_template"))
->>>>>>>> origin/master:dory/Utils/Templates_writer/Makefile_template_writer.py
     s = tmpl.render(**tk)
     save_string = os.path.join(app_directory, save_string)
     with open(save_string, "w") as f:
