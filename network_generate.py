@@ -69,7 +69,7 @@ def network_generate(frontend, target, conf_file, verbose_level='Check_all+Perf_
 
 if __name__ == '__main__':
     Frontends = ["NEMO", "Quantlab"]
-    Hardware_targets = ["GAP8.GAP8_board", "GAP8.GAP8_board_L2", "GAP8.GAP8_gvsoc", "Siracusa.Siracusa_board","Siracusa.Siracusa_gvsoc","nnx.ne16", "nnx.neureka","Occamy", "Diana.Diana_TVM", "Diana.Diana_SoC", "Siracusa.Siracusa_board", "Siracusa.Siracusa_gvsoc"]
+    Hardware_targets = ["GAP8.GAP8_board", "GAP8.GAP8_board_L2", "PULP.PULP_gvsoc", "Siracusa.Siracusa","Siracusa.Siracusa_gvsoc","nnx.ne16", "nnx.neureka","Occamy", "Diana.Diana_TVM", "Diana.Diana_SoC", "Siracusa.Siracusa_board"]
 
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter)
     parser.add_argument('frontend', type=str, choices=Frontends, help='Frontend from which the onnx is produced and from which the network has been trained')
@@ -82,7 +82,7 @@ if __name__ == '__main__':
                         "Last+Perf_final: all check + final performances \n"
                         "Extract the parameters from the onnx model")
     parser.add_argument('--perf_layer', default='No', help='Yes: MAC/cycles per layer. No: No perf per layer.')
-    parser.add_argument('--optional', default='auto',
+    parser.add_argument('--optional', default='mixed-sw',
                         help='auto (based on layer precision, 8bits or mixed-sw), 8bit, mixed-hw, mixed-sw')
     parser.add_argument('--app_dir', default='./application', help='Path to the generated application. Default: ./application')
 

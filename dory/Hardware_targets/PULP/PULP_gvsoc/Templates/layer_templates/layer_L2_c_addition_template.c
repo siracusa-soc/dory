@@ -20,9 +20,6 @@
 ${verbose_log}
 
 #include "${func_name}.h"
-% if sdk == 'gap_sdk':
-#include "pulp.h"
-  % endif
 #include "pmsis.h"
 #include "dory_get_tile.h"
 #include "dory_dma.h"

@@ -5,7 +5,7 @@
 # Alessio Burrello <alessio.burrello@unibo.it>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -104,6 +104,7 @@ class Parser_HW_to_C:
                     weights = np.concatenate((weights,node.__dict__[constants[i]]["value"]))
             while len(weights) % 4 != 0:
                 weights = np.concatenate((weights, np.asarray([0])))
+
             if weights.shape[0] != 0:
                 string_layer = node.name + "_weights.hex"
                 save_s = os.path.join(self.hex_dir, string_layer)
@@ -162,4 +163,3 @@ class Parser_HW_to_C:
         self.create_hex_weights_files()
         self.create_hex_input()
         print("Done!")
-
