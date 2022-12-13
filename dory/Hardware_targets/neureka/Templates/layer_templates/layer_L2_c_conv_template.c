@@ -30,13 +30,18 @@
 #include "pulp_nnx_util.h"
 #endif GVSOC_LOGGING
 
+#ifndef PRINT_DMA
+#define PRINT_DMA
+void static print_dma(DMA_copy* dma){
+  printf("\n[dma] ext:%p, loc:%p, n_2d:%u, s_2d:%u, n_1d:%u, s_1d:%u, l_1d:%u\n", dma->ext, dma->loc, dma->number_of_2d_copies, dma->stride_2d, dma->number_of_1d_copies, dma->stride_1d, dma->length_1d_copy); 
+}
+#endif
+
 #ifdef DEBUG_DMA_COPY
 #define dory_dma_memcpy_async(dma)                                                                                             \
   do                                                                                                                           \
   {                                                                                                                            \
-    printf(                                                                                                                    \
-        "\n[" #dma "] ext:%p, loc:%p, n_2d:%d, s_2d:%d, n_1d:%d, s_1d:%d, l_1d:%d\n",                                          \
-        dma.ext, dma.loc, dma.number_of_2d_copies, dma.stride_2d, dma.number_of_1d_copies, dma.stride_1d, dma.length_1d_copy); \
+    print_dma(dma);							\
     dory_dma_memcpy_async(dma);                                                                                                \
   } while (0)
 #endif
@@ -109,7 +114,7 @@ void ${func_name}(
   DMA_copy_x.stride_2d = ${l1_x_dma_stride_2d};
   DMA_copy_x.stride_1d = ${l1_x_dma_stride_1d};
   DMA_copy_x.dir = 1;
-
+  DMA_copy_x.tid = dory_dma_channel;
   
   DMA_copy_W.hwc_to_chw = 0;
   DMA_copy_W.number_of_2d_copies = 1;
@@ -117,7 +122,7 @@ void ${func_name}(
   DMA_copy_W.number_of_1d_copies = 1;
   DMA_copy_W.stride_1d = 0;
   DMA_copy_W.dir = 1;
-
+  DMA_copy_W.tid = dory_dma_channel;
 
 % if FLAG_BATCHNORM == 1:
   DMA_copy_k.hwc_to_chw = 0;
@@ -126,7 +131,7 @@ void ${func_name}(
   DMA_copy_k.stride_1d = 0;
   DMA_copy_k.number_of_1d_copies = 1;
   DMA_copy_k.dir = 1;
-
+  DMA_copy_k.tid = dory_dma_channel;
 
   DMA_copy_lambda.hwc_to_chw = 0;
   DMA_copy_lambda.stride_2d = 0;
@@ -134,7 +139,8 @@ void ${func_name}(
   DMA_copy_lambda.stride_1d = 0;
   DMA_copy_lambda.number_of_1d_copies = 1;
   DMA_copy_lambda.dir = 1;
-
+  DMA_copy_lambda.tid = dory_dma_channel;
+  
 % endif
   
   for (int i = 0; i < DMA_Y_CONTEXT_SIZE; i++) {
@@ -142,7 +148,7 @@ void ${func_name}(
     DMA_copy_y[i].stride_2d = ${l1_y_dma_stride_2d};
     DMA_copy_y[i].stride_1d = ${l1_y_dma_stride_1d};
     DMA_copy_y[i].dir = 0;
-
+    DMA_copy_y[i].tid = dory_dma_channel;
   }
 
 % if has_bias == 1:
@@ -151,6 +157,7 @@ void ${func_name}(
   DMA_copy_bias.stride_2d = 0;
   DMA_copy_bias.stride_1d = 0;
   DMA_copy_bias.dir = 1;
+  DMA_copy_bias.tid = dory_dma_channel;
 
 % endif
 
@@ -399,7 +406,6 @@ void ${func_name}(
     ////////////////////////
     // NE16 configuration //
     ////////////////////////
-
     int is_border_tile = 0
   % if tile_dim_nif != 1:
       || i_nif + 1 == ${tile_dim_nif}
@@ -445,12 +451,12 @@ void ${func_name}(
     // jobs commited.
     // This barrier is required before dma_memcpy so that we don't
     // overwrite the data being used by the accelerator.
+    
     dma_copy_y_job_ids[DMA_Y_INDEX(i_tile)] = nnx_acquire();
-
+    
     if (is_load_x) {
       dory_dma_memcpy_async(&DMA_copy_x);
-    }
-    if (is_load_w) {
+    }    if (is_load_w) {
       % if not use_wmem:
       dory_dma_memcpy_async(&DMA_copy_W);
       % endif
@@ -490,11 +496,12 @@ void ${func_name}(
 // |________/|__/  |__/|________/ \______/ 
 
     nnx_offload(nnx_task_to_offload);
-
+    
     // Wait for data to arrive
     if (is_load_x) {
       dory_dma_barrier(&DMA_copy_x);
     }
+   
     if (is_load_w) {
       % if not use_wmem:
       dory_dma_barrier(&DMA_copy_W);
@@ -509,8 +516,8 @@ void ${func_name}(
     if (i_tile == i_store_y + 2) {
       dory_dma_barrier(&DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
     }
-
     nnx_run_async();
+    //nnx_run_blocking();
 
 
 //  /$$   /$$ /$$$$$$$  /$$$$$$$   /$$$$$$  /$$$$$$$$ /$$$$$$$$       /$$$$$$ /$$   /$$ /$$$$$$$  /$$$$$$  /$$$$$$  /$$$$$$$$  /$$$$$$ 
@@ -635,7 +642,8 @@ void ${func_name}(
 % if not TEST:
   // wait for final write
   dory_dma_barrier(&DMA_copy_y[DMA_Y_INDEX(total_tiles-1)]);
-
+  dory_dma_free(dory_dma_channel);
+  
 % endif
 
   // clear NNX for cleanup

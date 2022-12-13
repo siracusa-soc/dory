@@ -54,13 +54,24 @@ class nnx_HW_Parser(Parser_DORY_to_HW):
                 if name not in ["l", "k", "outshift", "outmult"] and "bias" not in name:
                     weights_name = name
             weights = getattr(node, weights_name)
-            weights["value"] = acc.conv_unroll(weights["value"], node.weight_bits, weights["layout"], node.group > 1)
 
+            teststr1 = ''
+            for i in list(weights['value'].reshape(-1)):
+                teststr1 += f"{i}, "
+
+            weights["value"] = acc.conv_unroll(weights["value"]+128, node.weight_bits, weights["layout"], node.group > 1)
+
+            teststr2 = ''
+            for i in list(weights['value'].reshape(-1)):
+                teststr2 += f"{i}, "
+            # print(teststr1)
+            # print(teststr2)
+            # exit()
 
     def adjust_data_layout(self):
         print("\nNNX Backend: Adjusting Feature Data Layout to HWC and Weights Data Layout to accelerator specific")
         for i, node in enumerate(self.DORY_Graph):
-            nnx_HW_Parser.adjust_data_layout(node)
+            nnx_HW_Parser.adjust_data_layout_node(node, self.acc)
 
     def check_parameters(self):
         warning_count = 0

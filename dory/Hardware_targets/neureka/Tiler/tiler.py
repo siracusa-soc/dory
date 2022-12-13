@@ -6,7 +6,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2018-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -25,17 +25,19 @@ from .tiler_conv2d import Tiler_Conv2D
 
 class Tiler:
     # Class to generate the Tiling of the layer.
-    acc = None
 
-    def __init__(self, node, prev_node, conf):
+    def __init__(self, node, prev_node, res_space, conf, acc):
         self.node = node
         self.prev_node = prev_node
         self.conf = conf
+        self.acc = acc
 
     def get_tiling(self, level):
         # This function is used to create the tiling of either a convolutional layer or
         # a fully connected or a pooling layer. The relu is included automatically in conv/FC.
         if 'Conv' in self.node.name or 'FullyConnected' in self.node.name:
+
+
             return Tiler_Conv2D(self.node, self.prev_node, self.conf, self.acc).get_tiling(level)
         else:
             print("Not supported Layer.")

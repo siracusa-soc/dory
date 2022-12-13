@@ -31,6 +31,34 @@ static int qw, weight_d0_stride, outbytes;
 // __builtin_pulp_OffsetedX not defined - needs further investigation... (too
 // old PULP toolchain? used v1.0.16) It is used inside PULP-SDK...
 
+void print_task(nnx_task_t t){
+  nnx_cfg_t cfg = t.cfg;
+  nnx_subtile_number_t number = cfg.subtile.number;
+  nnx_subtile_remainder_t remainder = cfg.subtile.remainder;
+  
+  printf("Pointers: \r\n");
+  printf("\t weights_ptr : %p \r\n", t.weights_ptr);
+  printf("\t infeat_ptr : %p \r\n", t.infeat_ptr);
+  printf("\t outfeat_ptr : %p \r\n", t.outfeat_ptr);
+  printf("\t scale_ptr : %p \r\n", t.scale_ptr);
+  printf("\t scale_shift_ptr : %p \r\n", t.scale_shift_ptr);
+  printf("\t scale_bias_ptr : %p \r\n", t.scale_bias_ptr);
+  
+  printf("Config :  \r\n");
+  printf("\t padding : %u \r\n", cfg.padding);
+  printf("\t weight_offset_factor : %u \r\n", cfg.weight_offset_factor);
+  printf("\t filter_mask : %u \r\n", cfg.filter_mask);
+  printf("\t conf0 : %u \r\n", cfg.conf0);
+  printf("\t input_stride : %u,%u,%u \r\n", cfg.input_stride.d0, cfg.input_stride.d1, cfg.input_stride.d2);
+  printf("\t output_stride : %u,%u,%u \r\n", cfg.output_stride.d0, cfg.output_stride.d1, cfg.output_stride.d2);
+  printf("\t weights_stride : %u,%u,%u \r\n", cfg.weights_stride.d0, cfg.weights_stride.d1, cfg.weights_stride.d2);
+  
+  printf("Subtile :  \r\n");
+  printf("\t number : %u, %u\r\n", number.KoKi, number.HoWo);
+  printf("\t remainder : %u, %u, %u\r\n", remainder.KoKi, remainder.HoWo, remainder.HiWi);
+  
+}
+
 int nnx_empty() {
   return !NEUREKA_READ(NEUREKA_STATUS);
 }

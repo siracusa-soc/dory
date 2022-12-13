@@ -25,11 +25,14 @@ import os
 
 # DORY modules
 from dory.Parsers import HW_node, Layer_node
+from dory.Parsers import HW_node_neureka
 from dory.Parsers.Parser_DORY_to_HW import Parser_DORY_to_HW
 from functools import partial
 from dory.Hardware_targets.neureka.nnx_HW_Parser import nnx_HW_Parser
 from dory.Hardware_targets.neureka.neureka.Neureka import Neureka
 
+from dory.Hardware_targets.neureka.Tiler.tiler import Tiler as nTiler
+from functools import partial
 
 class onnx_manager_Siracusa(Parser_DORY_to_HW):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
@@ -130,13 +133,14 @@ class onnx_manager_Siracusa(Parser_DORY_to_HW):
     @staticmethod
     def is_offloadable(node: Layer_node) -> bool:
         #SCHEREMO: Check if it's an 8-Bit x 8-Bit or lower convolution
-        if node.op_type == "BNReluConv" and node.weight_bits == 8 and node.input_activation_bits == 8:
+        if node.op_type == "BNReluConv" and node.weight_bits == 8 and node.input_activation_bits == 8 and node.output_activation_type == 'uint' and node.input_activation_type == 'uint' and node.input_channels <= 192 and node.output_channels <= 192:
             #SCHEREMO: Check if it's a pointwise convolution:
             if node.group == 1 and node.kernel_shape == [1,1]:
+                print("Offloading to NEUREKA...")
                 return True
             #SCHEREMO: Check if it's a depthwise 3x3 convolution:
             elif node.input_channels == node.output_channels and node.group == node.output_channels and node.kernel_shape == [3,3]:
-                return True
+                return False
 
         return False
 
@@ -145,7 +149,35 @@ class onnx_manager_Siracusa(Parser_DORY_to_HW):
     def mapping_to_HW_nodes(self):
         super().mapping_to_HW_nodes()
         #SCHEREMO: function hooks that check if a node is offloadable to N-EUREKA and if so, mark it.
-        if hasattr(self.config_file, 'offload') and self.config_file['offload'] == True:
+        if 'offload' in self.config_file and self.config_file['offload'] == True:
             print("Offloading to N-EUREKA")
-            for node in self.DORY_Graph:
-                node.offloadable  = onnx_manager_Siracusa.is_offloadable(node)
+            for idx, node in enumerate(self.DORY_Graph):
+                if idx == 0:
+                    node.offloadable = False
+                else:
+                    node.offloadable  = onnx_manager_Siracusa.is_offloadable(node)
+
+    def tile_node(self, i, node_to_tile, previous_node):
+        if hasattr(node_to_tile, "offloadable") and node_to_tile.offloadable:
+            New_HW_node = HW_node_neureka.HW_node_neureka(node_to_tile, self.HW_description, self.acc)
+        else:
+            New_HW_node = HW_node.HW_node(node_to_tile, self.HW_description)
+        if hasattr(New_HW_node, "offloadable") and New_HW_node.offloadable:
+            New_HW_node.Tiler = partial(nTiler, conf=self.config_file, acc=self.acc)
+            ws = self.acc.weights_size
+        if i > 0:
+            New_HW_node.create_tiling_dimensions(previous_node, self.config_file)
+        else:
+            New_HW_node.create_tiling_dimensions(New_HW_node, self.config_file)
+        if hasattr(New_HW_node, "offloadable") and New_HW_node.offloadable:
+            New_HW_node.Tiler = None
+            New_HW_node.acc = None
+        return New_HW_node
+
+    def tiling(self):
+        print("\nInsert tiling parameters per layer inside graph nodes")
+        previous_node = None
+        for i, node_to_tile in enumerate(self.DORY_Graph):
+            New_HW_node = self.tile_node(i, node_to_tile, previous_node)
+            previous_node = New_HW_node
+            self.DORY_Graph[i] = New_HW_node

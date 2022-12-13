@@ -217,7 +217,6 @@ void ${func_name}(
   dory_dma_memcpy_async(&DMA_copy_W);
   dory_dma_barrier(&DMA_copy_W);
 
-
   pi_cl_team_barrier(0);
 
 % if flag_DW == 0:

@@ -6,7 +6,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2018-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -56,8 +56,11 @@ class Tiler_Conv2D:
 
     def get_tiling_conv2d_L3(self):
         # TODO In the current setup, width cannot be tiled. Is this the best solution?
-
-        L2_memory = self.node.HW_description["memory"]["L2"]["dimension"] - self.conf['code reserved space']
+        try:
+            L2_memory = self.node.HW_description["memory"]["L2"]["dimension"] - self.conf['code reserved space']
+        except Exception as e:
+            print(e)
+            import IPython; IPython.embed()
         # 4 iterations, adding each time a different part to be tiled, either weights, outputs, or both. Input is forced
 
         if self.prev_node is not None and self.prev_node.tiling_dimensions['L2']['output_dimensions'] is not None:
@@ -312,7 +315,7 @@ class Tiler_Conv2D:
                                            constraint_all, zero_variable, ks, modifier=1000000)
 
         solver.Add(obj_expr == heuristics)
-        
+
         objective = solver.Maximize(obj_expr, 1)
 
         decision_builder = solver.Phase([tile_n_in, tile_n_out, tile_h_in, tile_h_out, tile_w_in, tile_w_out],

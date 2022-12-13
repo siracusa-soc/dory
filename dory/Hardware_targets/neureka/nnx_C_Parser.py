@@ -68,12 +68,14 @@ class nnx_C_Parser(Parser_HW_to_C):
         cp_dir_files(backend_src_dir, out_src_dir)
 
     @staticmethod
-    def map_layer_to_C_file(node, config_file, acc, tmpl_dir, out_dir):
+    def map_layer_to_C_file(node, config_file, acc, tmpl_dir, out_dir, HW_description):
         tmpl_writer = TemplateWriter2D_L2(node)
-        tmpl_writer = nnx_C_Parser.__nnx_vars(tmpl_writer, node, config_file, acc)
+        tmpl_writer = nnx_C_Parser.__nnx_vars(tmpl_writer, node, config_file, acc, HW_description)
         tmpl_writer.use_wmem = config_file['use_wmem']
         tmpl_files = ['layer_L2_h_template.h', 'layer_L2_c_conv_template.c']
         tmpl_files = [os.path.join(tmpl_dir, tmpl_file) for tmpl_file in tmpl_files]
+
+        #import IPython; IPython.embed()
         tmpl_writer.write(tmpl_files, out_dir)
 
     def mapping_layers_to_C_files(self):
@@ -83,13 +85,13 @@ class nnx_C_Parser(Parser_HW_to_C):
 
         for node in self.HWgraph:
             nnx_C_Parser.copy_backend_files(node, self.app_directory, self.nnxdir)
-            nnx_C_Parser.map_layer_to_C_file(node, self.config_file, self.acc, tmpl_dir, out_dir)
+            nnx_C_Parser.map_layer_to_C_file(node, self.config_file, self.acc, tmpl_dir, out_dir, self.HW_description)
 
     @staticmethod
-    def __mem_tmpl_vars(tmpl_writer, node, mem_level, config_file, acc):
+    def __mem_tmpl_vars(tmpl_writer, node, mem_level, config_file, acc, HW_description):
         mem_name = f'L{mem_level}'
         upper_mem_name = f'L{mem_level + 1}'
-        no_w_tiling = mem_level == 1
+        no_w_tiling = mem_level == 1 and config_file['use_wmem'] and HW_description['memory']['wmem']
 
         def set_tmpl_var(name, val):
             prefix = f'{mem_name.lower()}_'
@@ -193,7 +195,7 @@ class nnx_C_Parser(Parser_HW_to_C):
             set_tmpl_var('y_dma_stride_2d', y_dma_stride_2d)
 
     @staticmethod
-    def __nnx_vars(tmpl_writer, node, config_file, acc):
-        nnx_C_Parser.__mem_tmpl_vars(tmpl_writer, node, 1, config_file, acc)
-        nnx_C_Parser.__mem_tmpl_vars(tmpl_writer, node, 2, config_file, acc)
+    def __nnx_vars(tmpl_writer, node, config_file, acc, HW_description):
+        nnx_C_Parser.__mem_tmpl_vars(tmpl_writer, node, 1, config_file, acc, HW_description)
+        nnx_C_Parser.__mem_tmpl_vars(tmpl_writer, node, 2, config_file, acc, HW_description)
         return tmpl_writer

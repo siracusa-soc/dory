@@ -62,8 +62,14 @@ static void checksum(const char *name, const uint8_t *d, size_t size, uint32_t s
     printf("Checking %s: Checksum ", name);
     if (sum_true == sum)
         printf("OK\n");
-    else
+    else{
         printf("Failed: true [%u] vs. calculated [%u]\n", sum_true, sum);
+	/* printf("Got the following:\r\n"); */
+	/* for (int i = 0; i < size; i++){ */
+	/*   printf("%u, ", d[i]); */
+	/* } */
+	/* printf("\r\n"); */
+    }
 }
 #endif
 % endif
@@ -138,7 +144,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
 /* ---------------------------------- */
   void *L2_output = NULL;
   void *L2_input = NULL;
-  void *L2_weights = NULL;
+  char *L2_weights = NULL;
   void *L3_weights_curr = L3_weights;
   void *bypass_activations = NULL;
 
@@ -221,11 +227,12 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
     if (i == 0 || branch_change[i-1] == 0) {
       checksum("L2 input", L2_input, activations_size[i], activations_checksum[i][exec]);
 % if l3_supported:
-      if (allocate_layer[i] == 1)
+      if (allocate_layer[i] == 1){
 % else:
       if (layer_with_weights[i])
 % endif
         checksum("L2 weights", L2_weights, weights_size[i], weights_checksum[i]);
+      }
       else
         printf("Weights in L3\n");
     }

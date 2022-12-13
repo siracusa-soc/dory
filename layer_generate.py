@@ -1,14 +1,14 @@
 # network_generate.py
 # Alessio Burrello <alessio.burrello@unibo.it>
-# 
+#
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -246,7 +246,7 @@ def create_layer(i_layer, layer_node, dory_node, network_dir, input=None, weight
         print("Unsupported output activation bitwidth")
         sys.exit(-1)
 
-    
+
     y = y.type(y_type)
 
     y_signed = layer_node.output_activation_type == 'int'
@@ -275,7 +275,6 @@ def create_layer(i_layer, layer_node, dory_node, network_dir, input=None, weight
         'layout': ''
     }
         y = y >> dory_node.outshift['value']
-        import ipdb; ipdb.set_trace()
         y = clip(y, dory_node.output_activation_bits, y_signed)
     else:
         layer_node.constant_names.append('outmul')
@@ -300,17 +299,17 @@ def create_layer(i_layer, layer_node, dory_node, network_dir, input=None, weight
 
 def create_graph(params, network_dir):
     params_in = deepcopy(params)
-    params_in['layer_type'] = 'Convolution'
-    params_in['operation_type'] = 'Conv'
-    params_in['input_bits'] = 2
-    params_in['kernel_shape'] = [1,1]
-    params_in['weight_bits'] = 2
-    params_in['padding'] = 4*[0]
-    params_in['output_bits'] = params['input_bits']
-    params_in['output_type'] = params['input_type']
-    params_in['stride'] = [1,1]
-    params_in['input_channels'] = 4
-    params_in['output_channels'] = params['input_channels']
+    # params_in['layer_type'] = 'Convolution'
+    # params_in['operation_type'] = 'Conv'
+    # params_in['input_bits'] = 2
+    # params_in['kernel_shape'] = [1,1]
+    # params_in['weight_bits'] = 2
+    # params_in['padding'] = 4*[0]
+    # params_in['output_bits'] = params['input_bits']
+    # params_in['output_type'] = params['input_type']
+    # params_in['stride'] = [1,1]
+    # params_in['input_channels'] = 4
+    # params_in['output_channels'] = params['input_channels']
 
 
     in_layer_node = create_layer_node(params_in, 0)
@@ -344,7 +343,7 @@ def create_graph(params, network_dir):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('hardware_target', type=str, choices=["GAP8.PULP_gvsoc","GAP8.GAP8", "nnx", "Occamy", "Diana"],
+    parser.add_argument('hardware_target', type=str, choices=["GAP8.PULP_gvsoc","GAP8.GAP8", "neureka.neureka", "Occamy", "Diana"],
                         help='Hardware platform for which the code is optimized')
     parser.add_argument('--config_file', default='dory/dory_examples/config_files/config_single_layer.json', type=str,
                         help='Path to the JSON file that specifies the ONNX file of the network and other information. Default: config_files/config_single_layer.json')

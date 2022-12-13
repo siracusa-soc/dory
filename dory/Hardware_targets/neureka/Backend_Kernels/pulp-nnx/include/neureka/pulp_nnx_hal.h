@@ -169,6 +169,7 @@ typedef struct {
     nnx_cfg_t cfg;
 } nnx_task_t;
 
+void print_task(nnx_task_t t);
 int  nnx_job_id();
 int  nnx_empty();
 int  nnx_full();

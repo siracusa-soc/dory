@@ -157,4 +157,4 @@ class C_Parser_Siracusa(Parser_HW_to_C):
                 self.map_layer_to_C_file(node, n_memory_levels, tmpl_dir, out_dir)
             else:
                 nnx_C_Parser.copy_backend_files(node, self.app_directory, self.config_file["nnx_dir"], "neureka")
-                nnx_C_Parser.map_layer_to_C_file(node, self.config_file, self.acc, os.path.join(self.config_file['nnx_dir'], "Templates/layer_templates"), out_dir)
+                nnx_C_Parser.map_layer_to_C_file(node, self.config_file, self.acc, os.path.join(self.config_file['nnx_dir'], "Templates/layer_templates"), out_dir, self.HW_description)

@@ -3,7 +3,7 @@
 	"memory": {
 		"levels": 3,
 		"L1": {
-			"dimension": 128000,
+			"dimension": 256000,
 			"bandwidth": 32,
 			"latency": 1,
 			"frequency": 100000000
@@ -21,7 +21,8 @@
 			"frequency": null
 		},
 		"DMA": "yes",
-		"cache": "no"
+	    "cache": "no",
+	    "wmem": true
 	},
 	"architecture": "single-core+accelerator",
 	"software development kit": {
@@ -36,8 +37,9 @@
 	"core frequency": 100000000,
 	"accelerator frequency": 100000000,
 	"HW specific parameters":{
-		"accelerator core0 stack": 3800,
-		"accelerator core1-7 stack": 3600		
+	    "accelerator core0 stack": 3500,
+	    "accelerator core1-7 stack": 3400,
+	    "code reserved space": 152000
 	},
     "split_ints": true,
     "blocking_dma_transfers": false

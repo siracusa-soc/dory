@@ -3,8 +3,6 @@ import random
 from ..Accelerator import Accelerator
 from ..Util import div_and_ceil, divisible
 
-from multiprocessing import Pool
-from functools import reduce
 
 class Neureka(Accelerator):
     TP_IN = 32
@@ -149,17 +147,13 @@ class Neureka(Accelerator):
         return x
 
     def __subtile_bit_unroll_1x1(self, tile, qw):
-
         retval = 0
-        for j, el in enumerate(tile):
-            # Scheremo: el.item() is assumed to be an integer - this doesn't necessarily hold
-            # and does not seem to be required by any spec - add explicit cast
-            assert np.isclose(el.item(), int(el.item())), "el cannot be reliably cast to integer!"
-            el = int(el.item())
-            vals = map(lambda i: ((1 << (i * self.KI_PER_WORD + j)) * (el & (1 << i))), range(qw))
-            retval |= reduce(lambda a,b: a|b, vals)
-            # for i in range(qw):
-            #     retval |= ((1 << (i * self.KI_PER_WORD + j)) * (el & (1 << i)))
+        for i in range(qw):
+            for j, el in enumerate(tile):
+
+                assert (el.item()-int(el.item())) == 0, "Found discrepancy!"
+                if int(el.item()) & (1 << i):
+                    retval |= 1 << (i * self.KI_PER_WORD + j)
         return retval
 
     def __subtile_bit_roll_1x1(self, ki_bits, w, qw):
@@ -206,10 +200,9 @@ class Neureka(Accelerator):
     def __subtile_bit_unroll_3x3(self, subtile, bit_idx):
         retval = 0
         for i, el in enumerate(subtile):
-            # Scheremo: el.item() is assumed to be an integer - this doesn't necessarily hold
-            # and does not seem to be required by any spec - add explicit cast
-            assert np.isclose(el.item(), int(el.item())), "el cannot be reliably cast to integer!"
-            retval |= ((1 << i) * (int(el.item()) & (1 << bit_idx)))
+            assert (el.item()-int(el.item())) == 0, "Found discrepancy!"
+            if int(el.item()) & (1 << bit_idx):
+                retval |= 1 << i
         return retval
 
     def __subtile_bit_roll_3x3(self, w, subtile_bit, bit):

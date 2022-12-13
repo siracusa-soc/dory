@@ -5,7 +5,7 @@
 # Alessio Burrello <alessio.burrello@unibo.it>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -68,6 +68,10 @@ class HW_node(DORY_node):
         except KeyError:
             self.split_ints = False
 
+    def weights_size(self, weights_dim):
+        groups = self.group if self.group < weights_dim[0] else weights_dim[0]
+        return np.prod(weights_dim)/groups*np.prod(self.kernel_shape)*self.weight_bits/8
+
     def create_tiling_dimensions(self, previous_node, config_file):
         #  ATTENTION MEMORY L3 --> TILE MEMORY DIMENSION --> Decide how to set. Re-init the whole memory?
         for level in np.arange(self.HW_description["memory"]["levels"],1, -1):
@@ -77,7 +81,7 @@ class HW_node(DORY_node):
             if "Convolution" in self.name or "FullyConnected" in self.name:
                 self.tiling_dimensions["L{}".format(level-1)]["weights_dimensions"] = weights_dim
                 groups = self.group if self.group < weights_dim[0] else weights_dim[0]
-                self.tiling_dimensions["L{}".format(level-1)]["weight_memory"] = np.prod(weights_dim)/groups*np.prod(self.kernel_shape)*self.weight_bits/8
+                self.tiling_dimensions["L{}".format(level-1)]["weight_memory"] = self.weights_size(weights_dim)
             else:
                 self.tiling_dimensions["L{}".format(level-1)]["weight_memory"] = 0
             constants_memory = 0
@@ -134,6 +138,8 @@ class HW_node(DORY_node):
                 if name not in ["l","k","outshift","outmul","outadd"]:
                     if "bias" not in name:
                         weight_name = name
+        else:
+            return
         if weight_name in self.__dict__:
             if self.weight_bits < 8 and self.group > 1:
                 self.__dict__[weight_name]["value"] = np.asarray(self.__dict__[weight_name]["value"])
@@ -152,6 +158,35 @@ class HW_node(DORY_node):
                 if name not in ["l","k","outshift","outmul","outadd"]:
                     if "bias" in name:
                         bias_name = name
+
+
+    # def add_checksum_w_integer(self):
+    #     self.check_sum_w = 0
+
+    #     weight_name = ""
+    #     if "Convolution" in self.name or "FullyConnected" in self.name:
+    #         for name in self.constant_names:
+    #             if name not in ["l","k","outshift","outmul","outadd"]:
+    #                 if "bias" not in name:
+    #                     weight_name = name
+    #     if weight_name in self.__dict__:
+    #         if self.weight_bits < 8 and self.group > 1:
+    #             self.__dict__[weight_name]["value"] = np.asarray(self.__dict__[weight_name]["value"])
+    #             self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].reshape(self.__dict__[weight_name]["value"].shape[0]//2,2,self.__dict__[weight_name]["value"].shape[1],self.__dict__[weight_name]["value"].shape[2],self.__dict__[weight_name]["value"].shape[3]).transpose(0,2,3,1,4).flatten()
+    #         else:
+    #             self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].flatten()
+    #         # self.__dict__[weight_name+"_raw"] = self.__dict__[weight_name]
+    #         self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].astype(np.uint8)
+    #         if self.weight_bits != 8:
+    #             self.__dict__[weight_name]["value"] = self._compress(self.__dict__[weight_name]["value"], self.weight_bits)
+    #         self.check_sum_w += sum(self.__dict__[weight_name]["value"])
+
+    #     bias_name = ""
+    #     if "Convolution" in self.name or "FullyConnected" in self.name:
+    #         for name in self.constant_names:
+    #             if name not in ["l","k","outshift","outmul","outadd"]:
+    #                 if "bias" in name:
+    #                     bias_name = name
 
         def to_byte(x, bits):
             x = x.ravel().astype(np.int64 if bits > 32 else np.int32)
