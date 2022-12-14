@@ -56,11 +56,7 @@ class Tiler_Conv2D:
 
     def get_tiling_conv2d_L3(self):
         # TODO In the current setup, width cannot be tiled. Is this the best solution?
-        try:
-            L2_memory = self.node.HW_description["memory"]["L2"]["dimension"] - self.conf['code reserved space']
-        except Exception as e:
-            print(e)
-            import IPython; IPython.embed()
+        L2_memory = self.node.HW_description["memory"]["L2"]["dimension"] - self.conf['code reserved space']
         # 4 iterations, adding each time a different part to be tiled, either weights, outputs, or both. Input is forced
 
         if self.prev_node is not None and self.prev_node.tiling_dimensions['L2']['output_dimensions'] is not None:
@@ -176,8 +172,8 @@ class Tiler_Conv2D:
                 tile_h_out = collector.Value(best_solution, tile_h_out)
                 return [tile_n_out, in_ch], [in_ch, tile_h_in, in_dim[1]], [out_ch, tile_h_out, out_dim[1]]
 
-        print("  Conv2d ERROR: no L3-L2 tiling found. Exiting...")
-        sys.exit(0)
+        raise RuntimeError("  Conv2d ERROR: no L3-L2 tiling found. Exiting...")
+
 
     def get_tiling_conv2d_L2(self):
         '''

@@ -27,7 +27,7 @@ import os
 from .HW_node import HW_node
 
 
-class HW_node_neureka(HW_node):
+class HW_node(HW_node):
     # A self allocated in the PULP_Graph
 
     # Class attributes

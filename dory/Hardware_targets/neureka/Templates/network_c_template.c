@@ -19,7 +19,10 @@
  */
 #define DEFINE_CONSTANTS
 #include "network.h"
-#include "dory.h"
+#include "pmsis.h"
+#include "network.h"
+#include "directional_allocator.h"
+#include "mem.h"
 % for layer in list_h:
 #include "${layer}"
 % endfor
@@ -175,12 +178,12 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
 /* -------- SECTION 1 BEGIN --------- */
 /* ---------------------------------- */
 
-  dory_L2_mem_init((void *)L2_memory_buffer, L2_memory_dimension);
+  directional_allocator_init((void *)L2_memory_buffer, L2_memory_dimension);
 
 /*
   - input allocation and copy
 */
-  L2_input = dory_L2_alloc(activations_size[0], dir);//initial activation in L2 an assumption by DORY 
+  L2_input = dmalloc(activations_size[0], dir);//initial activation in L2 an assumption by DORY 
 
 /* ---------------------------------- */
 /* --------- SECTION 1 END ---------- */
@@ -204,13 +207,13 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
   - allocate weights
   - read weights
 */
-    L2_output = dory_L2_alloc(activations_out_size[i], !dir);//allocate for the output 
+    L2_output = dmalloc(activations_out_size[i], !dir);//allocate for the output 
 
     if (L3_input_layers[i] == 1)//if the input is in L3 then allocate space in L2. if it is small enough may be it is already in l2 as the op of previous layer 
-      L2_input = dory_L2_alloc(activations_size[i], dir);
+      L2_input = dmalloc(activations_size[i], dir);
 
     if (layer_with_weights[i] == 1)// allocate space for weight 
-      L2_weights = dory_L2_alloc(weights_size[i], dir);
+      L2_weights = dmalloc(weights_size[i], dir);
 
     if (allocate_layer[i] == 1) {//should we move weights here or are the weights tiled. for weight memory it is tiled 
       pi_ram_read(&ram, L3_weights_internal + cumulative_weights_dimension[i], L2_weights, weights_size[i]);
@@ -317,15 +320,15 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
 
     // Free memory
     if (layer_with_weights[i] == 1)
-      dory_L2_free(weights_size[i], dir);
-    dory_L2_free(activations_size[i], dir);
+      dfree(weights_size[i], dir);
+    dfree(activations_size[i], dir);
     if (branch_input[i] == 1)
-      dory_L2_free(activations_size[i], dir);
+      dfree(activations_size[i], dir);
 
     // Residual connections
     if (i < ${len(DORY_HW_graph) - 1}) {
       if (branch_input[i+1] == 1) {
-        bypass_activations = dory_L2_alloc(activations_out_size[i], !dir);
+        bypass_activations = dmalloc(activations_out_size[i], !dir);
         residual_number--;
         pi_ram_read(&ram, layers_pointers[residual_number], bypass_activations, activations_out_size[i]);
         pi_ram_free(&ram, layers_pointers[residual_number], activations_out_size[i]);
@@ -350,8 +353,8 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
       }
 
       if (branch_change[i]==1) {
-        dory_L2_free(activations_out_size[i], !dir);
-        L2_input = dory_L2_alloc(activations_size[i+1], !dir);
+        dfree(activations_out_size[i], !dir);
+        L2_input = dmalloc(activations_size[i+1], !dir);
         residual_number--;
         residual_number--;
         pi_ram_read(&ram, layers_pointers[residual_number], L2_input, activations_size[i+1]);
@@ -361,7 +364,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
       }
 
       if (L3_output_layers[i] == 1)
-        dory_L2_free(activations_out_size[i], !dir);
+        dfree(activations_out_size[i], !dir);
     }
 
     L2_input = L2_output;

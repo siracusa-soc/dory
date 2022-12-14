@@ -1,3 +1,4 @@
+#!/bin/bash
 # network_generate.py
 # Alessio Burrello <alessio.burrello@unibo.it>
 #
@@ -22,12 +23,10 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import sys
-from copy import deepcopy
 
 sys.path.append('..')
 from dory.Parsers.DORY_node import DORY_node
 from dory.Parsers.Layer_node import Layer_node
-
 
 def borders(bits, signed):
     low = -(2 ** (bits-1)) if signed else 0
@@ -43,14 +42,23 @@ def std(bits):
     return 2**(bits-1)
 
 
-def create_dory_node(params, i):
+def clip(x, bits, signed=False):
+    low, high = borders(bits, signed)
+    x[x > high] = high
+    x[x < low] = low
+    return x
+
+
+def create_dory_node(params):
     node = DORY_node()
     node.branch_out = 0
     node.branch_in = 0
     node.branch_last = 0
     node.branch_change = 0
 
-    name = 'BNRelu' if params['batchnorm'] else 'Relu'
+    # TODO add Relu as optional variable
+    assert params['use_relu'], "Layer without ReLU not implemented."
+    name = 'BNRelu' if params['batchnorm'] else 'Relu'  # TODO: check how to name it if there is no Relu with Alessio
     node.name = name
     node.op_type = name
     node.layout = 'CHW'
@@ -70,23 +78,15 @@ def create_dory_node(params, i):
 
     # Ids of previous nodes, node can have multiple input nodes
     node.number_of_input_nodes = 1
-    node.input_indexes = [str(i)]
-    node.output_index = str(i+1)
+    node.input_indexes = ['1']  # layer_node is the input
+    node.output_index = '2'
     # Constants: weights, bias, k, lambda
     node.number_of_input_constants = 4
 
     return node
 
 
-def calculate_output_dimensions(node):
-    if node.name == 'FullyConnected':
-        return [1,1]
-    h = (node.input_dimensions[0] + node.pads[0] + node.pads[1] - node.kernel_shape[0]) / node.strides[0] + 1
-    w = (node.input_dimensions[1] + node.pads[2] + node.pads[3] - node.kernel_shape[1]) / node.strides[1] + 1
-    return [int(h), int(w)]
-
-
-def create_layer_node(params, i):
+def create_layer_node(params):
     node = Layer_node()
     node.name = params['layer_type']
     node.op_type = params['operation_type']  # TODO might be redundant
@@ -95,7 +95,13 @@ def create_layer_node(params, i):
     node.strides = params['stride']
     node.kernel_shape = params['kernel_shape']
     node.input_dimensions = params['input_dimensions']
-    node.output_dimensions = calculate_output_dimensions(node)
+
+    def calculate_output_dimensions(input_dimensions, kernel_shape, stride, padding):
+        h = (input_dimensions[0] + padding[0] + padding[1] - kernel_shape[0]) / stride[0] + 1
+        w = (input_dimensions[1] + padding[2] + padding[3] - kernel_shape[1]) / stride[1] + 1
+        return [int(h), int(w)]
+
+    node.output_dimensions = calculate_output_dimensions(node.input_dimensions, node.kernel_shape, node.strides, node.pads)
     node.input_channels = params['input_channels']
     node.output_channels = params['output_channels']
     node.output_activation_type = params['output_type']
@@ -108,26 +114,17 @@ def create_layer_node(params, i):
     node.constant_bits = None
     node.weight_type = 'int'
     node.weight_bits = params['weight_bits']
-    node.bias_bits = params['bias_bits']
     node.weight_memory = None
     node.MACs = node.output_dimensions[0] * node.output_dimensions[1] * node.output_channels \
                 * node.kernel_shape[1] * node.kernel_shape[0] * node.input_channels
-    node.n_test_inputs = 1
 
     # Ids of previous nodes, node can have multiple input nodes
     node.number_of_input_nodes = 1
-    node.input_indexes = [str(i)]  # '0' is the network input
-    node.output_index = str(i+1)
+    node.input_indexes = ['0']  # '0' is the network input
+    node.output_index = '1'
     # Constants: weights
     node.number_of_input_constants = 1
     return node
-
-
-def clip(x, bits, signed=False):
-    low, high = borders(bits, signed)
-    x[x > high] = high
-    x[x < low] = low
-    return x
 
 
 def calculate_shift(x, bits, signed):
@@ -136,19 +133,16 @@ def calculate_shift(x, bits, signed):
 
     This function calculates the shift in a way that it maximizes the number of values
     that are in between min and max after shifting. It looks only at positive values since
-    all the negative ones are going to bi clipped to 0.
-    Signed: Tries to get the standard deviation to be equal to range / 2
-    Unsigned: Tries to shift the mean of positive values towards the middle of the range [0, 2**bits - 1]
+    all the negative ones are going to be clipped to 0.
+    Calculates the maximum distance from the mean and shifts to fit it into standard deviation.
     """
-    x = x.type(torch.float)
-    if signed:
-        s = x.std()
-        ratio = 1 if s.isnan() or s.isinf() or s < 1 else s.item() / std(bits)
-    else:
-        m = x[x > 0].mean().item()
-        ratio = m / mean(bits, signed)
-    shift = round(np.log2(ratio))
-    shift = 0 if shift < 0 else shift
+    x = x[x > 0]
+    shift = 0
+    if x.numel() > 0:
+        dist = torch.abs(x - mean(bits, signed))
+        ratio = dist.max().item() / std(bits)
+        if ratio != 0:
+            shift = round(np.log2(ratio))
     return shift
 
 
@@ -191,52 +185,37 @@ def calculate_batchnorm_params(x, output_bits, constant_bits, signed):
 def create_input(node):
     low, high = borders(node.input_activation_bits, node.input_activation_type == 'int')
     size = (1, node.input_channels, node.input_dimensions[0], node.input_dimensions[1])
-
-    dt = torch.int64 if node.output_activation_bits==64 else torch.int32
-    return torch.randint(low=low, high=high+1, size=size).to(dtype=dt)
+    return torch.randint(low=low, high=high, size=size)
 
 
 def create_weight(node):
     low, high = borders(node.weight_bits, signed=True)
-    if node.name == 'FullyConnected':
-        size = (node.output_channels, node.input_dimensions[0]*node.input_dimensions[1]*node.input_channels)
-    else:
-        size = (node.output_channels, node.input_channels // node.group, node.kernel_shape[0], node.kernel_shape[1])
-    dt = torch.int64 if node.output_activation_bits==64 else torch.int32
-    return torch.randint(low=low, high=high+1, size=size).to(dtype=dt)
+    size = (node.output_channels, node.input_channels // node.group, node.kernel_shape[0], node.kernel_shape[1])
+    return torch.randint(low=low, high=high, size=size)
 
-def create_bias(node):
-    low, high = borders(node.bias_bits//2, signed=True)
-    size = (node.output_channels,1)
-    # return torch.randint(low=low, high=high, size=size).flatten()
-    dt = torch.int64 if node.output_activation_bits==64 else torch.int32
-    return torch.randint(low=low, high=high, size=size).flatten().to(dtype=dt)
 
-def create_layer(i_layer, layer_node, dory_node, network_dir, input=None, weight=None, batchnorm_params=None):
+def create_layer(i_layer, layer_node, dory_node, network_dir, hardware_target, input=None, weight=None, batchnorm_params=None, use_relu=True):
+
+    def save(a, filename):
+        np.savetxt(os.path.join(network_dir, filename), a.permute(0, 2, 3, 1).flatten(), delimiter=',', fmt='%d')
+
     x = input if input is not None else create_input(layer_node)
-    is_fc = layer_node.name == 'FullyConnected'
-    x_save = x.permute(0, 2, 3, 1).flatten()
-    if i_layer == 0:
-        np.savetxt(os.path.join(network_dir, 'input.txt'), x_save, delimiter=',', fmt='%d')
+
+    save(x, 'input.txt')
 
     w = weight if weight is not None else create_weight(layer_node)
+
+    if 'ne16' in hardware_target or 'neureka' in hardware_target:
+        w_offset, _ = borders(layer_node.weight_bits, signed=True)
+    else:
+        w_offset = 0
+    w_save = w
     layer_node.constant_names.append('weights')
     layer_node.weights = {
-        'value': w.numpy(),
+        'value': w_save.numpy(),
         'layout': 'CoutCinK'
     }
-    b = create_bias(layer_node)
-    layer_node.constant_names.append('bias')
-    layer_node.bias = {
-        'value': b.numpy(),
-        'layout': ''
-    }
-
-    if not is_fc:
-        y = F.conv2d(input=x, weight=w, bias=b, stride=layer_node.strides, padding=layer_node.pads[0], groups=layer_node.group)
-    else:
-        inp = x[:, :, 0, 0].flatten().unsqueeze(0)
-        y = F.linear(input=inp, weight=w, bias=b)
+    y = F.conv2d(input=x, weight=w, stride=layer_node.strides, padding=layer_node.pads[0], groups=layer_node.group)
 
     if layer_node.output_activation_bits == 64:
         y_type = torch.int64
@@ -245,113 +224,85 @@ def create_layer(i_layer, layer_node, dory_node, network_dir, input=None, weight
     else:
         print("Unsupported output activation bitwidth")
         sys.exit(-1)
-
-
     y = y.type(y_type)
+
+    save(y, f'inter_layer{i_layer}.txt')
 
     y_signed = layer_node.output_activation_type == 'int'
 
-    if  dory_node:
-        if 'BN' in dory_node.op_type:
-            if batchnorm_params is not None:
-                k, l = batchnorm_params
-            else:
-                k, l = calculate_batchnorm_params(y, dory_node.output_activation_bits, dory_node.constant_bits, y_signed)
-            dory_node.constant_names.append('k')
-            dory_node.k = {'value': k.type(torch.float).numpy(), 'layout': ''}
-            dory_node.constant_names.append('l')
-            dory_node.l = {'value': l.type(torch.float).numpy(), 'layout': ''}
-            y = batchnorm(y, k, l)
+    if 'BN' in dory_node.op_type:
+        if batchnorm_params is not None:
+            k, l = batchnorm_params
         else:
-            dory_node.constant_names.append('outmul')
-            dory_node.outmul = {
-            'value': 1,
-            'layout': ''
-            }
+            k, l = calculate_batchnorm_params(y, dory_node.output_activation_bits, dory_node.constant_bits, y_signed)
+        dory_node.constant_names.append('k')
+        dory_node.k = {'value': k.type(torch.float).numpy(), 'layout': ''}
+        dory_node.constant_names.append('l')
+        dory_node.l = {'value': l.type(torch.float).numpy(), 'layout': ''}
+        y = batchnorm(y, k, l)
 
-        dory_node.constant_names.append('outshift')
-        dory_node.outshift = {
+    dory_node.constant_names.append('outshift')
+    dory_node.outshift = {
         'value': calculate_shift(y, dory_node.output_activation_bits, y_signed),
         'layout': ''
     }
-        y = y >> dory_node.outshift['value']
-        y = clip(y, dory_node.output_activation_bits, y_signed)
-    else:
-        layer_node.constant_names.append('outmul')
-        layer_node.outmul = {
-        'value': 1,
-        'layout': ''
-        }
-        layer_node.constant_names.append('outshift')
-        layer_node.outshift = {
-            'value': 0,
-        'layout': ''
-    }
+    y = y >> dory_node.outshift['value']
+    y = clip(y, dory_node.output_activation_bits, y_signed)
 
+    if use_relu:
+        y[y < 0] = 0
 
-
-    y_save = y.permute(0, 2, 3, 1) if not is_fc else y
-    y_save = y_save.flatten().numpy()
-    np.savetxt(os.path.join(network_dir, f'out_layer{i_layer}.txt'), y_save, delimiter=',', fmt='%d')
+    save(y, f'out_layer{i_layer}.txt')
 
     return y
 
-
-def create_graph(params, network_dir):
-    params_in = deepcopy(params)
-    # params_in['layer_type'] = 'Convolution'
-    # params_in['operation_type'] = 'Conv'
-    # params_in['input_bits'] = 2
-    # params_in['kernel_shape'] = [1,1]
-    # params_in['weight_bits'] = 2
-    # params_in['padding'] = 4*[0]
-    # params_in['output_bits'] = params['input_bits']
-    # params_in['output_type'] = params['input_type']
-    # params_in['stride'] = [1,1]
-    # params_in['input_channels'] = 4
-    # params_in['output_channels'] = params['input_channels']
-
-
-    in_layer_node = create_layer_node(params_in, 0)
-    in_act_node = create_dory_node(params_in, 1)
-
+def create_graph(params, network_dir, hardware_target):
+    layer_node = create_layer_node(params)
+    dory_node = create_dory_node(params)
     with torch.no_grad():
-        layer_input = create_layer(0, in_layer_node, in_act_node, network_dir)
+        create_layer(0, layer_node, dory_node, network_dir, hardware_target)
 
-    layer_node = create_layer_node(params, 2)
-    act_node = create_dory_node(params, 3)
-    with torch.no_grad():
-        layer_output = create_layer(1, layer_node, act_node, network_dir, input=layer_input)
+    return [layer_node, dory_node]
 
-    params_out = deepcopy(params)
-    params_out['layer_type'] = 'FullyConnected'
-    params_out['operation_type'] = 'Gemm'
-    params_out['input_bits'] = params['output_bits']
-    params_out['weight_bits'] = 2
-    params_out['output_channels'] = 8
-    params_out['input_channels'] = params['output_channels'] # params['output_channels'] *
-    # layer_node.output_dimensions[0] * layer_node.output_dimensions[1] # this
-    # will give tiling issues...
-    params_out['input_dimensions'] = [1,1]#layer_node.output_dimensions
-    params_out['output_bits'] = 32
-    out_layer_node = create_layer_node(params_out, 4)
-    with torch.no_grad():
-        create_layer(2, out_layer_node, None, network_dir, input=layer_output)
 
-    return [in_layer_node, in_act_node, layer_node, act_node, out_layer_node]
+def layer_generate(
+        json_configuration_file,
+        json_configuration_file_root,
+        network_dir,
+        hardware_target,
+        verbose_level='Check_all',
+        perf_layer='No',
+        optional='auto',
+        app_dir='./application'
+):
 
+
+    torch.manual_seed(0)
+    DORY_Graph = create_graph(json_configuration_file, network_dir, hardware_target)
+
+    # Including and running the transformation from DORY IR to DORY HW IR
+    onnx_manager = importlib.import_module(f'dory.Hardware_targets.{hardware_target}.HW_Parser')
+    DORY_to_DORY_HW = onnx_manager.onnx_manager
+    DORY_Graph = DORY_to_DORY_HW(DORY_Graph, json_configuration_file, json_configuration_file_root).full_graph_parsing()
+
+    # Deployment of the model on the target architecture
+    onnx_manager = importlib.import_module(f'dory.Hardware_targets.{hardware_target}.C_Parser')
+    DORY_HW_to_C = onnx_manager.C_Parser
+    DORY_Graph = DORY_HW_to_C(DORY_Graph, json_configuration_file, json_configuration_file_root,
+                              verbose_level, perf_layer, optional, app_dir).full_graph_parsing()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('hardware_target', type=str, choices=["GAP8.PULP_gvsoc","GAP8.GAP8", "neureka.neureka", "Occamy", "Diana"],
+    parser.add_argument('hardware_target', type=str, choices=["GAP8", "nnx.ne16", "neureka.neureka", "Occamy", "Diana"],
                         help='Hardware platform for which the code is optimized')
-    parser.add_argument('--config_file', default='dory/dory_examples/config_files/config_single_layer.json', type=str,
+    parser.add_argument('--config_file', default='config_files/config_single_layer.json', type=str,
                         help='Path to the JSON file that specifies the ONNX file of the network and other information. Default: config_files/config_single_layer.json')
     parser.add_argument('--app_dir', default='./application',
                         help='Path to the generated application. Default: ./application')
     parser.add_argument('--perf_layer', default='Yes', help='Yes: MAC/cycles per layer. No: No perf per layer.')
     parser.add_argument('--verbose_level', default='Check_all+Perf_final',
                         help="None: No_printf.\nPerf_final: only total performance\nCheck_all+Perf_final: all check + final performances \nLast+Perf_final: all check + final performances \nExtract the parameters from the onnx model")
+    parser.add_argument('--backend', default='MCU', help='MCU or Occamy')
     parser.add_argument('--optional', default='mixed-sw',
                         help='auto (based on layer precision, 8bits or mixed-sw), 8bit, mixed-hw, mixed-sw')
     args = parser.parse_args()
@@ -363,17 +314,5 @@ if __name__ == '__main__':
     network_dir = os.path.join(json_configuration_file_root, os.path.dirname(json_configuration_file['onnx_file']))
     os.makedirs(network_dir, exist_ok=True)
 
-    torch.manual_seed(0)
-
-    DORY_Graph = create_graph(json_configuration_file, network_dir)
-
-    # Including and running the transformation from DORY IR to DORY HW IR
-    onnx_manager = importlib.import_module(f'dory.Hardware_targets.{args.hardware_target}.HW_Parser')
-    DORY_to_DORY_HW = onnx_manager.onnx_manager
-    DORY_Graph = DORY_to_DORY_HW(DORY_Graph, json_configuration_file, json_configuration_file_root).full_graph_parsing()
-
-    # Deployment of the model on the target architecture
-    onnx_manager = importlib.import_module(f'dory.Hardware_targets.{args.hardware_target}.C_Parser')
-    DORY_HW_to_C = onnx_manager.C_Parser
-    DORY_Graph = DORY_HW_to_C(DORY_Graph, json_configuration_file, json_configuration_file_root,
-                              args.verbose_level, args.perf_layer, args.optional, args.app_dir).full_graph_parsing()
+    layer_generate(json_configuration_file, json_configuration_file_root, network_dir,
+                   args.hardware_target, args.verbose_level, args.perf_layer, args.optional, args.app_dir)

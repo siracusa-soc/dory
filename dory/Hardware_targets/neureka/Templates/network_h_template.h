@@ -30,7 +30,7 @@
 #include "bsp/ram.h"
 #include "bsp/flash/hyperflash.h"
 #include "bsp/ram/hyperram.h"
-#include "mem_controller.h"
+#include "mem.h"
 
 typedef struct {
     unsigned int L3_input;
@@ -124,8 +124,8 @@ static int branch_change[${len(DORY_HW_graph)}] = {\
 % endfor
 };
 static int weights_checksum[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-${DORY_HW_graph[i].check_sum_w}${'' if loop.last else ', '}\
+% for node in DORY_HW_graph:
+${node.check_sum_w}${'' if loop.last else ', '}\
 % endfor
 };
 static int weights_size[${len(DORY_HW_graph)}] = {\
@@ -144,7 +144,7 @@ ${int(sum([DORY_HW_graph[j].tiling_dimensions["L3"]["weight_memory"] + DORY_HW_g
 };
 static int activations_checksum[${len(DORY_HW_graph)}] = {\
 % for i in range(len(DORY_HW_graph)):
-${DORY_HW_graph[i].check_sum_in}${'' if loop.last else ', '}\
+${DORY_HW_graph[i].check_sum_in[0]}${'' if loop.last else ', '}\
 % endfor
 };
 static int activations_size[${len(DORY_HW_graph)}] = {\
@@ -172,7 +172,7 @@ ${DORY_HW_graph[i].outshift["value"]}${'' if loop.last else ', '}\
 };
 static int activations_out_checksum[${len(DORY_HW_graph)}] = {\
 % for i in range(len(DORY_HW_graph)):
-${DORY_HW_graph[i].check_sum_out}${'' if loop.last else ', '}\
+${DORY_HW_graph[i].check_sum_out[0]}${'' if loop.last else ', '}\
 % endfor
 };
 static int activations_out_size[${len(DORY_HW_graph)}] = {\

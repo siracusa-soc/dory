@@ -163,7 +163,7 @@ class onnx_manager_Siracusa(Parser_DORY_to_HW):
 
     def tile_node(self, i, node_to_tile, previous_node):
         if hasattr(node_to_tile, "offloadable") and node_to_tile.offloadable:
-            New_HW_node = HW_node_neureka.HW_node_neureka(node_to_tile, self.HW_description, self.acc)
+            New_HW_node = HW_node_neureka.HW_node(node_to_tile, self.HW_description, self.acc)
         else:
             New_HW_node = HW_node.HW_node(node_to_tile, self.HW_description)
         if hasattr(New_HW_node, "offloadable") and New_HW_node.offloadable:

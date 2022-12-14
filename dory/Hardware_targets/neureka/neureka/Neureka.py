@@ -48,7 +48,7 @@ class Neureka(Accelerator):
             else:
                 w = w.transpose(0, 3, 1, 2)
         else:
-            raise Exception(f'Format {layout} not implemented.')
+            raise Exception(f"Format {layout} not implemented.")
 
         fs = w.shape[2]
 

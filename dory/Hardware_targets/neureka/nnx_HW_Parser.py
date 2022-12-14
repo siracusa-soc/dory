@@ -23,12 +23,13 @@ import os
 import json
 
 # DORY modules
-from dory.Parsers.HW_node import HW_node
+from dory.Parsers.HW_node_neureka import HW_node
 from dory.Parsers.Layer_node import Layer_node
 from dory.Parsers.Parser_DORY_to_HW import Parser_DORY_to_HW
 from .HW_Pattern_rewriter import Pattern_rewriter
 from .Tiler.tiler import Tiler
 
+from functools import partial
 
 class nnx_HW_Parser(Parser_DORY_to_HW):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
@@ -43,30 +44,18 @@ class nnx_HW_Parser(Parser_DORY_to_HW):
         weights_size = self.acc.weights_size
         Tiler.acc = self.acc
         super().__init__(graph, rules, Pattern_rewriter, supported_layers, hw_description,
-                         os.path.join(confdir, os.path.dirname(conf["onnx_file"])), conf, Tiler,
-                         weights_size=lambda self, dim:
-                         weights_size(dim[0], dim[1], self.kernel_shape, self.weight_bits, self.group > 1))
+                         os.path.join(confdir, os.path.dirname(conf["onnx_file"])), conf, Tiler)
 
     @staticmethod
     def adjust_data_layout_node(node, acc):
         if "Convolution" in node.name:
             for name in node.constant_names:
-                if name not in ["l", "k", "outshift", "outmult"] and "bias" not in name:
+                if name not in ["l", "k", "outshift", "outmul"] and "bias" not in name:
                     weights_name = name
             weights = getattr(node, weights_name)
 
-            teststr1 = ''
-            for i in list(weights['value'].reshape(-1)):
-                teststr1 += f"{i}, "
+            weights["value"] = acc.conv_unroll(weights["value"] + (2**(node.weight_bits-1)), node.weight_bits, weights["layout"], node.group > 1)
 
-            weights["value"] = acc.conv_unroll(weights["value"]+128, node.weight_bits, weights["layout"], node.group > 1)
-
-            teststr2 = ''
-            for i in list(weights['value'].reshape(-1)):
-                teststr2 += f"{i}, "
-            # print(teststr1)
-            # print(teststr2)
-            # exit()
 
     def adjust_data_layout(self):
         print("\nNNX Backend: Adjusting Feature Data Layout to HWC and Weights Data Layout to accelerator specific")
@@ -82,7 +71,7 @@ class nnx_HW_Parser(Parser_DORY_to_HW):
             warning_count += 1
 
         vanilla_attrs = list(Layer_node().__dict__.keys()) + \
-                        list(HW_node(Layer_node(), self.HW_description).__dict__.keys())
+                        list(HW_node(Layer_node(), self.HW_description, self.acc).__dict__.keys())
 
         for node in self.DORY_Graph:
             for attr, value in node.__dict__.items():
@@ -94,3 +83,23 @@ class nnx_HW_Parser(Parser_DORY_to_HW):
                     warning('an empty list')
 
         print(f"\nDORY checking of the attribute of the graph: {warning_count} warnings\n")
+
+    def tile_node(self, i, node_to_tile, previous_node):
+        New_HW_node = HW_node(node_to_tile, self.HW_description, self.acc)
+        New_HW_node.Tiler = partial(Tiler, conf=self.config_file, acc=self.acc)
+        ws = self.acc.weights_size
+        if i > 0:
+            New_HW_node.create_tiling_dimensions(previous_node, self.config_file)
+        else:
+            New_HW_node.create_tiling_dimensions(New_HW_node, self.config_file)
+        New_HW_node.Tiler = None
+        New_HW_node.acc = None
+        return New_HW_node
+
+    def tiling(self):
+        print("\nInsert tiling parameters per layer inside graph nodes")
+        previous_node = None
+        for i, node_to_tile in enumerate(self.DORY_Graph):
+            New_HW_node = self.tile_node(i, node_to_tile, previous_node)
+            previous_node = New_HW_node
+            self.DORY_Graph[i] = New_HW_node
