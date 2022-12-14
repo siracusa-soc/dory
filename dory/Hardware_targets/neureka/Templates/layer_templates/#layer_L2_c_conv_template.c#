@@ -73,6 +73,7 @@ void ${func_name}(
   /////////////
   // Logging //
   /////////////
+
 #ifdef GVSOC_LOGGING
   nnx_activate_gvsoc_logging(GVSOC_LOG_LEVEL);
 #endif
@@ -378,7 +379,7 @@ void ${func_name}(
       % else:
       DMA_copy_W.ext = l2_W + ${l1_W_tile_ko_len * l1_W_tile_ki_size} * i_nof;
       DMA_copy_W.loc = w_tile_ptr;
-      DMA_copy_W.length_1d_copy = W_tile_ko_len * ${l1_W_tile_ki_size};
+      DMA_copy_W.length_1d_copy = W_tile_ko_len* ${l1_W_tile_ki_size};
       % endif
 
 % if FLAG_BATCHNORM == 1:
@@ -495,6 +496,7 @@ void ${func_name}(
 // |________/|__/  |__/|________/ \______/ 
 
     nnx_offload(nnx_task_to_offload);
+    print_task(*nnx_task_to_offload);
     
     // Wait for data to arrive
     if (is_load_x) {

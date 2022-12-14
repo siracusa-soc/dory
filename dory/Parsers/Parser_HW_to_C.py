@@ -51,6 +51,8 @@ class Parser_HW_to_C:
 
     def mapping_network_to_C_file(self):
         print("\nGenerating the .c file of the network.")
+        print(self.inc_dir_rel)
+        print(self.src_dir_rel)
         Network_writer.print_template_network(
             self.HWgraph,
             self.HW_description,

@@ -76,7 +76,7 @@ def print_template_layer_L3(node, tmpl_dir, out_dir):
     tk['conv_overlap1'] = conv_overlap1
     tk['conv_overlap2'] = conv_overlap2
     tk['padding'] = padding_top
-    if (node.L3_input):
+    if (node.tiling_dimensions["L3"]["input_dimensions"] != node.tiling_dimensions["L2"]["input_dimensions"]):
         tk['input_L3'] = 1
         factor_h_in = int(h_out / h_out_L2) 
     else:
@@ -105,25 +105,8 @@ def print_template_layer_L3(node, tmpl_dir, out_dir):
     tk['w_in'] = w_in_L2
     tk['h_in'] = h_in_L2
     tk['n_in'] = n_in_L2
-
-    tk['has_bias'] = int(len([1 for name in node.constant_names if "bias" in name])>0)
-
-    offset = 0
-    tk['l3_offset_w'] = offset
-    offset += node.tiling_dimensions["L3"]["weight_memory"]
-
-    if tk['has_bias'] == 1:
-        tk['l3_offset_b'] = offset
-        offset += node.tiling_dimensions["L3"]["bias_memory"]
-
-    if not isinstance(node.tiling_dimensions["L2"]["constants_memory"], type(None)):
-        tk['l3_offset_k'] = offset
-        offset += int(node.tiling_dimensions["L3"]["constants_memory"] / 2)
-
-        tk['l3_offset_l'] = offset
-        offset += int(node.tiling_dimensions["L3"]["constants_memory"] / 2)
-
     tk['weight_dim'] = int( node.tiling_dimensions["L2"]["weight_memory"] )
+    tk['has_bias'] = int(len([1 for name in node.constant_names if "bias" in name])>0)
     if tk['has_bias'] == 1:
         tk['bias_dim'] = node.tiling_dimensions["L2"]["bias_memory"]
     else:
@@ -172,9 +155,8 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
             tk['first_layer'] = 1
     else:
         tk['first_layer'] = 0
-    tk['node'] = node
     tk['sdk'] = node.HW_description["software development kit"]["name"]
-    tk['number_of_clusters'] = node.HW_description["HW specific parameters"]["clusters"] if "clusters" in node.HW_description["HW specific parameters"].keys() else 1
+    tk['number_of_clusters'] = node.HW_description["number_of_clusters"] if "number_of_clusters" in node.HW_description.keys() else 1
     tk['optional_type'] = layer_type
     tk['func_name'] = node.name
     tk['flag_DW'] = 1 if node.group > 1 else 0
@@ -182,7 +164,7 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     tk['FLAG_BATCHNORM'] = 1 if 'k' in node.constant_names else 0
     tk['has_bias'] = int(len([1 for name in node.constant_names if "bias" in name])>0)
     tk['FLAG_RELU'] = 1 if 'outshift' in node.constant_names else 0
-    tk['type'] = f"{node.input_activation_type}8_t" if node.input_activation_type in ["int", "uint"] else "float"
+    tk['type'] = "char" if node.input_activation_type in ["int", "uint"] else "float"
     tk['conv_overlap1'] = conv_overlap1
     tk['conv_overlap2'] = conv_overlap2
     tk['padding_top'] = padding_top
@@ -295,7 +277,6 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     tk['fs1'] = fs1
     tk['fs2'] = fs2
     tk['W_data_size_byte'] = ds_W
-    tk['b_data_size_byte'] = ds_bias
     tk['W_tile_size_nof'] = tile_n_out 
     if tk['has_bias'] == 1:
         tk['b_size_byte'] = int(math.ceil(n_out * ds_bias / 8.0))
@@ -438,9 +419,6 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     tk['out_add'] = node.outadd["value"] if 'outadd' in node.constant_names else 0
     tk['out_mul'] = node.outmul["value"] if 'outmul' in node.constant_names else 1
 
-    tk['conv1d'] = node.conv1d
-    tk['dilations'] = node.dilations
-
     if "Addition" not in node.name and "Pool" not in node.name:
         tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_conv_template.c"))
     elif "Pool" in node.name:
@@ -454,14 +432,13 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
         else:
             tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_addition_template.c"))
 
-    s_c = tmpl.render(verbose_log=l, **tk)
+    s = tmpl.render(verbose_log=l, **tk)
     save_string = os.path.join(out_dir, 'src', name_layer.replace("h", "c"))
     with open(save_string, "w") as f:
-        f.write(s_c)
+        f.write(s)
     tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_h_template.h"))
     s = tmpl.render(verbose_log=l, **tk)
     save_string = os.path.join(out_dir, 'inc', name_layer)
     with open(save_string, "w") as f:
         f.write(s)
-    return s, s_c
 

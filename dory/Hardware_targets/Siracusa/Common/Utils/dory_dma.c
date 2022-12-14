@@ -91,8 +91,9 @@ void dory_dma_memcpy_2d_async(DMA_copy *copy) {
 
 void dory_dma_memcpy_3d_async(DMA_copy *copy) {
   int core_id = pi_core_id();
-  int Log2Core = log2(NUM_CORES);
-  int number_of_2d_copies_per_core = (copy->number_of_2d_copies >> Log2Core) + ((copy->number_of_2d_copies & (NUM_CORES-1))!=0);
+  if (core_id==0){
+  int Log2Core = log2(1);
+  int number_of_2d_copies_per_core = (copy->number_of_2d_copies >> Log2Core) + ((copy->number_of_2d_copies & (0))!=0);
   int start_pixel, stop_pixel;
   start_pixel = MIN(number_of_2d_copies_per_core * core_id, copy->number_of_2d_copies);
   stop_pixel = MIN(start_pixel + number_of_2d_copies_per_core, copy->number_of_2d_copies);
@@ -115,6 +116,7 @@ void dory_dma_memcpy_3d_async(DMA_copy *copy) {
 #endif
     loc += size_2d;
     ext += copy->stride_2d;
+  }
   }
 }
 

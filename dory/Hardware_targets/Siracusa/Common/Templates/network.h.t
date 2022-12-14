@@ -228,6 +228,17 @@ static int layer_with_weights[${len(DORY_HW_graph)}] = {\
 % endif
 % endfor
 };
+%if offload:
+static uint8_t layer_offloaded[${len(DORY_HW_graph)}] = {\
+% for node in DORY_HW_graph:
+% if hasattr(node, "offloadable") and node.offloadable:
+1${'' if loop.last else ', '}\
+% else:
+0${'' if loop.last else ', '}\
+% endif
+% endfor
+};
+%endif
 % if 'Yes' in performance:
 static int NODEs_MACS[${len(DORY_HW_graph)}] = {\
 % for node in DORY_HW_graph:

@@ -30,8 +30,8 @@ def print_template_network(
     verbose_level,
     perf_layer,
         app_directory,
-        inc_dir_rel,
-        src_dir_rel
+        inc_dir_rel='inc',
+        src_dir_rel='src'
 ):
     # Generate the Network management c file.
     tk = OrderedDict([])
@@ -47,9 +47,9 @@ def print_template_network(
     tk['verbose_level'] = verbose_level
     tk['performance'] = perf_layer
     tk['l1_buffer'] = HW_description["memory"]["L1"]["dimension"] - HW_description["HW specific parameters"]["accelerator core0 stack"] - 7 * HW_description["HW specific parameters"]["accelerator core1-7 stack"]
-    tk['master_stack'] = HW_description["HW specific parameters"]["accelerator core0 stack"] 
+    tk['master_stack'] = HW_description["HW specific parameters"]["accelerator core0 stack"]
     tk['slave_stack'] = HW_description["HW specific parameters"]["accelerator core1-7 stack"]
-    tk['l2_buffer_size'] = HW_description["memory"]["L2"]["dimension"] - config_file["code reserved space"] 
+    tk['l2_buffer_size'] = HW_description["memory"]["L2"]["dimension"] - config_file["code reserved space"]
     MACs = 0
     file_list_w = []
     list_h = []
@@ -82,13 +82,13 @@ def print_template_network(
     root = os.path.realpath(os.path.dirname(__file__))
     tmpl = Template(filename=os.path.join(root, "../../Hardware_targets", HW_description["name"], "Templates/network_c_template.c"))
     s = tmpl.render(verbose_log=l, **tk)
-    save_string = os.path.join(app_directory, src_dir_rel, 'network.c') 
+    save_string = os.path.join(app_directory, src_dir_rel, 'network.c')
     with open(save_string, "w") as f:
         f.write(s)
 
     tmpl = Template(filename=os.path.join(root, "../../Hardware_targets", HW_description["name"], "Templates/network_h_template.h"))
     s = tmpl.render(verbose_log=l, **tk)
-    save_string = os.path.join(app_directory, inc_dir_rel, 'network.h') 
+    save_string = os.path.join(app_directory, inc_dir_rel, 'network.h')
     with open(save_string, "w") as f:
         f.write(s)
 

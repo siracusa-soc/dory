@@ -23,9 +23,9 @@ import os
 import json
 
 # DORY modules
-from Parsers.HW_node import HW_node
-from Parsers.Layer_node import Layer_node
-from Parsers.Parser_DORY_to_HW import Parser_DORY_to_HW
+from dory.Parsers.HW_node import HW_node
+from dory.Parsers.Layer_node import Layer_node
+from dory.Parsers.Parser_DORY_to_HW import Parser_DORY_to_HW
 from .HW_Pattern_rewriter import Pattern_rewriter
 from .Tiler.tiler import Tiler
 

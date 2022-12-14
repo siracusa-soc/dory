@@ -24,8 +24,8 @@ import os
 import shutil
 
 # DORY modules
-from Parsers.Parser_HW_to_C import Parser_HW_to_C
-from Utils.Templates_writer.TemplateWriter2D import TemplateWriter2D_L2
+from dory.Parsers.Parser_HW_to_C import Parser_HW_to_C
+from dory.Utils.Templates_writer.TemplateWriter2D import TemplateWriter2D_L2
 from .Util import div_and_ceil, rem
 
 
