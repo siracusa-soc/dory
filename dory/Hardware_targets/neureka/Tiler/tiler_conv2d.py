@@ -202,6 +202,7 @@ class Tiler_Conv2D:
         # We are recalculating these variables because the output could be tiled but the input isn't or vice versa.
         in_mem = self.node.tiling_dimensions["L2"]["input_activation_memory"]
         out_mem = self.node.tiling_dimensions["L2"]["output_activation_memory"]
+        w_in   = self.node.tiling_dimensions["L2"]["input_dimensions"][2]
         h_in   = self.node.tiling_dimensions["L2"]["input_dimensions"][1]
         h_out   = self.node.tiling_dimensions["L2"]["output_dimensions"][1]
         if self.node.tiling_dimensions["L3"]["output_dimensions"][1] > self.node.tiling_dimensions["L2"]["output_dimensions"][1]:
@@ -214,11 +215,16 @@ class Tiler_Conv2D:
             out_mem = int(self.node.tiling_dimensions["L2"]["output_activation_memory"] / self.node.tiling_dimensions["L2"]["output_dimensions"][0] * self.node.tiling_dimensions["L2"]["weights_dimensions"][0])
 
         no_w_tiling = self.node.HW_description["memory"]["wmem"] and self.conf['use_wmem']
-        weight_memory = 0 if no_w_tiling else self.node.tiling_dimensions["L2"]["weight_memory"]
+
+        # SCHEREMO: Workaround. currently weights are moved over L2
+        weight_memory = self.node.tiling_dimensions["L2"]["weight_memory"]
 
         buffer_total = weight_memory + self.node.tiling_dimensions["L2"]["constants_memory"] + self.node.tiling_dimensions["L2"]["bias_memory"] + in_mem + out_mem
+        weight_memory = 0 if no_w_tiling else self.node.tiling_dimensions["L2"]["weight_memory"]
 
         # return immediately if the memory fits the L1
+        print(buffer_total)
+        print(L1_memory)
 
         if buffer_total <= L1_memory:
             return (self.node.tiling_dimensions["L2"]["weights_dimensions"],
@@ -264,6 +270,10 @@ class Tiler_Conv2D:
 
         solver.Add(tile_h_out * s[0] == (tile_h_in - (ks[0] - 1) + (s[0] - 1)))
         solver.Add(tile_w_out * s[1] == (tile_w_in - (ks[1] - 1) + (s[1] - 1)))
+
+        #SCHEREMO: This is some bull...
+        solver.Add(tile_h_in < 28)
+        solver.Add(tile_w_in < 28)
 
         if no_w_tiling:
             solver.Add(tile_n_out == out_ch)
