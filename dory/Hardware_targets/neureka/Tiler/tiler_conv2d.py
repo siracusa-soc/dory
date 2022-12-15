@@ -223,9 +223,6 @@ class Tiler_Conv2D:
         weight_memory = 0 if no_w_tiling else self.node.tiling_dimensions["L2"]["weight_memory"]
 
         # return immediately if the memory fits the L1
-        print(buffer_total)
-        print(L1_memory)
-
         if buffer_total <= L1_memory:
             return (self.node.tiling_dimensions["L2"]["weights_dimensions"],
                     [self.node.tiling_dimensions["L2"]["input_dimensions"][0],

@@ -211,17 +211,12 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
     % if l3_supported:
     if (L3_input_layers[i] == 1)
       L2_input = dmalloc(activations_size[i], dir);
-
+    
     if (layer_with_weights[i] == 1)
       L2_weights = dmalloc(weights_size[i], dir);
 
     if (allocate_layer[i] == 1){
       ram_read(L2_weights, L3_weights_curr, weights_size[i]);
-      %if offload:
-      if(layer_offloaded[i]){
-	memcpy(WEIGHT_MEM_BASE + MRAM_OFFSET, L2_weights, weights_size[i]);
-	}
-      %endif
     }
     % else:
     L2_weights = Weights_name[i];

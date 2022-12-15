@@ -158,3 +158,47 @@ class C_Parser_Siracusa(Parser_HW_to_C):
             else:
                 nnx_C_Parser.copy_backend_files(node, self.app_directory, self.config_file["nnx_dir"], "neureka")
                 nnx_C_Parser.map_layer_to_C_file(node, self.config_file, self.acc, os.path.join(self.config_file['nnx_dir'], "Templates/layer_templates"), out_dir, self.HW_description)
+
+    def create_hex_weight(self, node):
+        # if not hasattr(node, "offloadable") or not node.offloadable:
+        super().create_hex_weight(node)
+        if hasattr(node, "offloadable") and node.offloadable and self.config_file["use_wmem"]:
+            constants = [0, 0, 0, 0]
+            for name in node.constant_names:
+                if "weight" in name:
+                    constants[0] = name
+                elif "bias" in name:
+                    constants[1] = name
+                elif "k" == name:
+                    constants[2] = name
+                elif "l" == name:
+                    constants[3] = name
+
+            weights = bytearray()
+            for const in constants:
+                if const != 0:
+                    weights += getattr(node, const)['value'].tobytes()
+
+            if len(weights) % 4 != 0:
+                weights += bytearray([0] * (4 - len(weights) % 4))
+
+            weightstr = ''
+            weightstr += f"#include \"{node.name}_weights.h\"\r\n"
+            weightstr += '__attribute__ ((section(".weightmem_mram"))) '
+            weightstr += f"unsigned char {node.name}_weights[{len(weights)}] = "
+            weightstr += "{"
+            weightstr += ", ".join("0x"+format(x, '02x') for x in weights)
+            weightstr += "};\r\n"
+
+            weightstr_h = f"#ifndef __INCLUDE_GUARD_{node.name}\r\n"
+            weightstr_h += f"#define __INCLUDE_GUARD_{node.name}\r\n"
+            weightstr_h += f"extern unsigned char {node.name}_weights[{len(weights)}];"
+            weightstr_h += f"\r\n#endif"
+
+            filepath = os.path.join(self.app_directory, 'src', node.name + "_weights.c")
+            with open(filepath, 'w') as file:
+                file.write(weightstr)
+
+            filepath = os.path.join(self.app_directory, 'inc', node.name + "_weights.h")
+            with open(filepath, 'w') as file:
+                file.write(weightstr_h)

@@ -4,7 +4,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -49,7 +49,7 @@ def print_template_layer_L3(node, tmpl_dir, out_dir):
     w_out      = node.tiling_dimensions["L3"]["output_dimensions"][2]
     ds_y       = node.output_activation_bits
     ds_act     = node.constant_bits
- 
+
     fs1        = node.kernel_shape[0]
     fs2        = node.kernel_shape[1]
     ds_W       = node.weight_bits
@@ -76,9 +76,11 @@ def print_template_layer_L3(node, tmpl_dir, out_dir):
     tk['conv_overlap1'] = conv_overlap1
     tk['conv_overlap2'] = conv_overlap2
     tk['padding'] = padding_top
+    if hasattr(node, "use_wmem"):
+        tk['use_wmem'] = node.use_wmem
     if (node.tiling_dimensions["L3"]["input_dimensions"] != node.tiling_dimensions["L2"]["input_dimensions"]):
         tk['input_L3'] = 1
-        factor_h_in = int(h_out / h_out_L2) 
+        factor_h_in = int(h_out / h_out_L2)
     else:
         tk['input_L3'] = 0
         factor_h_in = 1
@@ -197,7 +199,7 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     tile_n_out = node.tiling_dimensions["L1"]["output_dimensions"][0]
     tile_h_out = node.tiling_dimensions["L1"]["output_dimensions"][1]
     tile_w_out = node.tiling_dimensions["L1"]["output_dimensions"][2]
- 
+
     fs1        = node.kernel_shape[0]
     fs2        = node.kernel_shape[1]
 
@@ -277,7 +279,7 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     tk['fs1'] = fs1
     tk['fs2'] = fs2
     tk['W_data_size_byte'] = ds_W
-    tk['W_tile_size_nof'] = tile_n_out 
+    tk['W_tile_size_nof'] = tile_n_out
     if tk['has_bias'] == 1:
         tk['b_size_byte'] = int(math.ceil(n_out * ds_bias / 8.0))
     else:
@@ -294,7 +296,7 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
         if DW == 0:
             tk['W_stride_nof_byte'] = int(math.ceil(tk['nif'] * fs1 * fs2 * ds_W / 8.0))
         else:
-            tk['W_stride_nof_byte'] = int(math.ceil(tk['nif'] * fs1 * fs2 * ds_W / 8.0))        
+            tk['W_stride_nof_byte'] = int(math.ceil(tk['nif'] * fs1 * fs2 * ds_W / 8.0))
         tk['W_stride_hw_byte'] = int(math.ceil(tk['nif'] * ds_W / 8.0))
         tk['W_tile_nif_byte'] = int(math.ceil(tk['W_tile_size_nif'] * ds_W / 8.0))
         tk['W_tile_nif_byte_last'] = int(math.ceil(tk['W_tile_size_nif_last'] * ds_W / 8.0))
@@ -379,7 +381,7 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
         tk['W_tile_size_nof_last'] = n_out % tile_n_out if (n_out % tile_n_out) > 0 else tile_n_out
         tk['W_tile_size_nif_last'] = tk['W_tile_size_nif']
         tk['W_tile_size_nif_byte_last'] = int(math.ceil(tk['W_tile_size_nif_last'] * ds_W / 8.0))
-    
+
     # y last
     tk['y_tile_size_nof_last'] = n_out % tile_n_out if (n_out % tile_n_out) > 0 else tile_n_out
     tk['y_tile_size_h_last'] = h_out % tile_h_out if (h_out % tile_h_out) > 0 else tile_h_out
@@ -441,4 +443,3 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     save_string = os.path.join(out_dir, 'inc', name_layer)
     with open(save_string, "w") as f:
         f.write(s)
-

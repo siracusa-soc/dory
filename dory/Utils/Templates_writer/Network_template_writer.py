@@ -48,6 +48,8 @@ def print_template_network(
     tk['performance'] = perf_layer
     if "offload" in config_file:
         tk['offload'] = config_file['offload']
+    if "use_wmem" in config_file:
+        tk['use_wmem'] = config_file['use_wmem']
     tk['l1_buffer'] = HW_description["memory"]["L1"]["dimension"] - HW_description["HW specific parameters"]["accelerator core0 stack"] - 7 * HW_description["HW specific parameters"]["accelerator core1-7 stack"]
     tk['master_stack'] = HW_description["HW specific parameters"]["accelerator core0 stack"]
     tk['slave_stack'] = HW_description["HW specific parameters"]["accelerator core1-7 stack"]

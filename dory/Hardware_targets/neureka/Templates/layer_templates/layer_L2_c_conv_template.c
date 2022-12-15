@@ -334,11 +334,15 @@ void ${func_name}(
 //  \______/  \______/ |__/  \__/|__/      |______/ \______/  \______/ |__/  |__/|________/
 
     const int x_tile_ptr     = db[i_db_x].x;
-    % if use_wmem:
-    int w_tile_ptr;
-    % else:
+    /* % if use_wmem: */
+    /* int w_tile_ptr; */
+    /* % else: */
+    % if not use_wmem:
     const int w_tile_ptr     = db[i_db_w].w;
+    % else:
+      const int w_tile_ptr     = ${func_name}_weights;
     % endif
+    /* % endif */
 % if FLAG_BATCHNORM == 1:
     const int scale_tile_ptr = db[i_db_w].scale;
     const int bias_tile_ptr  = db[i_db_w].bias;
@@ -372,9 +376,7 @@ void ${func_name}(
 
       W_tile_ko_len = (i_nof + 1 == ${tile_dim_nof}) ? ${l1_W_tile_ko_len_last} : ${l1_W_tile_ko_len};
 
-      % if use_wmem:
-      w_tile_ptr = WEIGHT_MEM_BASE + MRAM_OFFSET + ${l1_W_tile_ko_len * l1_W_tile_ki_size} * i_nof;
-      % else:
+      %if not use_wmem:
       DMA_copy_W.ext = l2_W + ${l1_W_tile_ko_len * l1_W_tile_ki_size} * i_nof;
       DMA_copy_W.loc = w_tile_ptr;
       DMA_copy_W.length_1d_copy = W_tile_ko_len * ${l1_W_tile_ki_size};

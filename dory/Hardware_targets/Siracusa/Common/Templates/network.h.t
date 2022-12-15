@@ -32,6 +32,12 @@
 % endif
 #include <stddef.h>
 
+%for node in DORY_HW_graph:
+   %if hasattr(node, "offloadable") and node.offloadable:
+   #include "${node.name}_weights.h"
+   %endif
+%endfor
+   
 #define PAD_TOP    (1 << 3)
 #define PAD_RIGHT  (1 << 2)
 #define PAD_BOTTOM (1 << 1)
@@ -106,7 +112,8 @@ static int L3_output_layers[${len(DORY_HW_graph)}] = {\
 };
 static int allocate_layer[${len(DORY_HW_graph)}] = {\
 % for node in DORY_HW_graph:
-% if node.tiling_dimensions["L3"]["weights_dimensions"] == node.tiling_dimensions["L2"]["weights_dimensions"] and ('FullyConnected' in node.name or 'Conv' in node.name):
+% if (node.tiling_dimensions["L3"]["weights_dimensions"] == node.tiling_dimensions["L2"]["weights_dimensions"] and ('FullyConnected' in node.name or 'Conv' in node.name)):
+	     // and not (hasattr(node, "offloadable") and hasattr(node, "use_wmem") and node.offloadable and node.use_wmem):
 1${'' if loop.last else ', '}\
 % else:
 0${'' if loop.last else ', '}\
@@ -221,7 +228,8 @@ ${int(node.tiling_dimensions["L2"]["output_activation_memory"])}${'' if loop.las
 };
 static int layer_with_weights[${len(DORY_HW_graph)}] = {\
 % for node in DORY_HW_graph:
-% if 'Conv' in node.name or 'FullyConnected' in node.name:
+% if ('Conv' in node.name or 'FullyConnected' in node.name):
+//  and not (hasattr(node, "offloadable") and hasattr(node, "use_wmem") and node.offloadable and node.use_wmem):
 1${'' if loop.last else ', '}\
 % else:
 0${'' if loop.last else ', '}\
@@ -229,12 +237,12 @@ static int layer_with_weights[${len(DORY_HW_graph)}] = {\
 % endfor
 };
 %if offload:
-static uint8_t layer_offloaded[${len(DORY_HW_graph)}] = {\
+static void* layer_wmem_ptr[${len(DORY_HW_graph)}] = {\
 % for node in DORY_HW_graph:
-% if hasattr(node, "offloadable") and node.offloadable:
-1${'' if loop.last else ', '}\
+% if hasattr(node, "offloadable") and node.offloadable and hasattr(node, "use_wmem") and node.use_wmem:
+${node.name}_weights${'' if loop.last else ', '}\
 % else:
-0${'' if loop.last else ', '}\
+NULL${'' if loop.last else ', '}\
 % endif
 % endfor
 };

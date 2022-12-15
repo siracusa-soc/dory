@@ -133,7 +133,7 @@ class onnx_manager_Siracusa(Parser_DORY_to_HW):
     @staticmethod
     def is_offloadable(node: Layer_node) -> bool:
         #SCHEREMO: Check if it's an 8-Bit x 8-Bit or lower convolution
-        if node.op_type == "BNReluConv" and node.weight_bits == 8 and node.input_activation_bits == 8 and node.output_activation_type == 'uint' and node.input_activation_type == 'uint' and node.input_channels <= 192 and node.output_channels <= 192:
+        if node.op_type == "BNReluConv" and node.weight_bits == 8 and node.input_activation_bits == 8 and node.output_activation_type == 'uint' and node.input_activation_type == 'uint':
             #SCHEREMO: Check if it's a pointwise convolution:
             if node.group == 1 and node.kernel_shape == [1,1]:
                 print("Offloading to NEUREKA...")
@@ -160,6 +160,7 @@ class onnx_manager_Siracusa(Parser_DORY_to_HW):
                     node.offloadable = False
                 else:
                     node.offloadable  = onnx_manager_Siracusa.is_offloadable(node)
+                    node.use_wmem = node.offloadable and self.config_file['use_wmem']
 
     def tile_node(self, i, node_to_tile, previous_node):
         if hasattr(node_to_tile, "offloadable") and node_to_tile.offloadable:
