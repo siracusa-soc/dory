@@ -220,7 +220,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
       %if offload:
       if(layer_offloaded[i]){
 	memcpy(WEIGHT_MEM_BASE + MRAM_OFFSET, L2_weights, weights_size[i]);
-      }
+	}
       %endif
     }
     % else:

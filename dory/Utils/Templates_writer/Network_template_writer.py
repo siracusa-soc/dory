@@ -46,6 +46,8 @@ def print_template_network(
     tk['weights_number'] = weights_number
     tk['verbose_level'] = verbose_level
     tk['performance'] = perf_layer
+    if "offload" in config_file:
+        tk['offload'] = config_file['offload']
     tk['l1_buffer'] = HW_description["memory"]["L1"]["dimension"] - HW_description["HW specific parameters"]["accelerator core0 stack"] - 7 * HW_description["HW specific parameters"]["accelerator core1-7 stack"]
     tk['master_stack'] = HW_description["HW specific parameters"]["accelerator core0 stack"]
     tk['slave_stack'] = HW_description["HW specific parameters"]["accelerator core1-7 stack"]

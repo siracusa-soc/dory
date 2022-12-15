@@ -248,7 +248,6 @@ class Tiler_Conv2D:
         tile_h_out = solver.IntVar(1, out_dim[0], 'tile_h_out')
         tile_w_out = solver.IntVar(1, out_dim[1], 'tile_w_out')
         zero_variable = solver.IntVar(0, 0, 'zero_variable')
-
         ###############################################
         ##### GEOMETRICAL CONSTRAINTS #################
         ###############################################
@@ -265,6 +264,10 @@ class Tiler_Conv2D:
 
         solver.Add(tile_h_out * s[0] == (tile_h_in - (ks[0] - 1) + (s[0] - 1)))
         solver.Add(tile_w_out * s[1] == (tile_w_in - (ks[1] - 1) + (s[1] - 1)))
+
+        if no_w_tiling:
+            solver.Add(tile_n_out == out_ch)
+            solver.Add(tile_n_in == in_ch)
 
         if depthwise:
             solver.Add(tile_n_in == tile_n_out)

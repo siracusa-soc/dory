@@ -217,9 +217,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
 
     if (allocate_layer[i] == 1) {//should we move weights here or are the weights tiled. for weight memory it is tiled 
       pi_ram_read(&ram, L3_weights_internal + cumulative_weights_dimension[i], L2_weights, weights_size[i]);
-      % if use_wmem:
       memcpy(WEIGHT_MEM_BASE + MRAM_OFFSET, L2_weights, weights_size[i]);
-      % endif
     }
 
 % if 'Check_all' in verbose_level:
