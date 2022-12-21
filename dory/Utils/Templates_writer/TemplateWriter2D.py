@@ -284,9 +284,9 @@ class TemplateWriter2D_L2(TemplateWriter):
         if has_bias == 1:
             self.l2_off_bias = int(math.ceil(self.nof * self.nif * fs1 * fs2 * ds_W / 8.0))
         if n_in == tile_n_in and w_in == tile_w_in and h_in == tile_h_in:
-            x_buffer_size = int(math.ceil(ds_x * tile_n_in * tile_h_in * tile_w_in / 8.0))
+            x_buffer_size = int(math.ceil(ds_x * tile_n_in * (tile_h_in) * (tile_w_in) / 8.0))
         else:
-            x_buffer_size = 2 * int(math.ceil(ds_x * tile_n_in * tile_h_in * tile_w_in / 8.0))
+            x_buffer_size = 2 * int(math.ceil(ds_x * tile_n_in * (tile_h_in) * (tile_w_in) / 8.0))
             if x_buffer_size % 16 != 0:
                 x_buffer_size = x_buffer_size
         if (n_in == (tile_n_in * number_of_clusters) and w_in == tile_w_in and h_in == tile_h_in and n_out == (

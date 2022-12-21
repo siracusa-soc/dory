@@ -93,6 +93,8 @@ void ${func_name}(
   const unsigned int l1_buffer = layer_args->L1_buffer;
   const unsigned int out_shift = layer_args->out_shift;
 
+  int pad_offset_h, pad_offset_w;
+  
   /////////////////////
   // DMA declaration //
   /////////////////////
@@ -305,6 +307,7 @@ void ${func_name}(
 
   for (int i = 0; i < MIN(NNX_TASK_COUNT, total_tiles); i++) {
     nnx_task_init(&nnx_tasks[i]);
+    //nnx_pad_input(&(nnx_tasks[i].cfg),0,1,0,0,0);
     nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}(&(nnx_tasks[i].cfg), nnx_weights, nnx_input, nnx_output);
     nnx_norm_quant(&(nnx_tasks[i].cfg), norm, quant);
     % if use_wmem:
@@ -353,18 +356,43 @@ void ${func_name}(
     // DMA configuration //
     ///////////////////////
 
+    static uint8_t p_t, p_l, p_b, p_r = 0;
+    printf("i_h: %u\r\n", i_h);
+    
+    if(i_h==0){
+      p_t = ${padding_top};
+    } else {
+      p_t = 0;
+    }
+    if(i_w==0){
+      p_l = ${padding_left};
+    } else{
+      p_l = 0;
+    }
+    if(i_h+1==(${tile_dim_h})){
+      p_b = ${padding_bottom};
+    }else{
+      p_b = 0;
+    }
+    if(i_w+1==(${tile_dim_w})){
+      p_r = ${padding_right};
+    } else{
+      p_r = 0;
+    }
+    
     if (is_load_x) {
       x_tile_size_h = (i_h + 1 == ${tile_dim_h}) ? ${x_tile_size_h_last} : ${x_tile_size_h};
       x_tile_size_w = (i_w + 1 == ${tile_dim_w}) ? ${x_tile_size_w_last} : ${x_tile_size_w};
       x_length_nif_byte = (i_nif + 1 == ${tile_dim_nif}) ? ${x_tile_size_nif_byte_last} : ${x_tile_size_nif_byte};
+      
+      pad_offset_h = 0;
+      pad_offset_w = 0;
 
-      // additionally overlap by padding for the first tile after a border one
-      // this because in the first tile we use less pixels from x_buffer, since we have the ones of padding
-      const int pad_offset_h = i_h > 0 ? ${padding_top} : 0;
-      const int pad_offset_w = i_w > 0 ? ${padding_left} : 0;
-
-      DMA_copy_x.ext = dory_get_tile_3d(l2_x, i_h, i_w, i_nif, ${x_tile_size_h}, ${x_tile_size_w}, ${x_tile_size_nif}, ${x_w}, ${nif*g}, ${conv_overlap1}, ${conv_overlap2}, 0, pad_offset_h, pad_offset_w, 0, ${x_data_size_byte});
-      DMA_copy_x.loc = x_tile_ptr;
+      /* pad_offset_h = 0; */
+      /* pad_offset_w = 0; */
+      
+      DMA_copy_x.ext = dory_get_tile_3d(l2_x, i_h , i_w, i_nif, ${x_tile_size_h}, ${x_tile_size_w}, ${x_tile_size_nif}, ${x_w}, ${nif*g}, ${conv_overlap1}, ${conv_overlap2}, 0, pad_offset_h, pad_offset_w, 0, ${x_data_size_byte});
+      DMA_copy_x.loc = x_tile_ptr + (p_t*x_tile_size_w*${x_tile_size_nif}) + p_l*${x_tile_size_nif};
       DMA_copy_x.number_of_2d_copies = x_tile_size_h;
       DMA_copy_x.number_of_1d_copies = x_tile_size_w;
       DMA_copy_x.length_1d_copy = x_length_nif_byte;
@@ -396,7 +424,7 @@ void ${func_name}(
     y_tile_size_h = (i_h + 1 == ${tile_dim_h}) ? ${y_tile_size_h_last} : ${y_tile_size_h};
     y_tile_size_w = (i_w + 1 == ${tile_dim_w}) ? ${y_tile_size_w_last} : ${y_tile_size_w};
     y_length_nof_byte = (i_nof + 1 == ${tile_dim_nof}) ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
-
+    
     DMA_copy_y[DMA_Y_INDEX(i_tile)].ext = dory_get_tile_3d(l2_y, i_h, i_w, i_nof, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${int(nof*factor)}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
     DMA_copy_y[DMA_Y_INDEX(i_tile)].loc = y_tile_ptr;
     DMA_copy_y[DMA_Y_INDEX(i_tile)].number_of_2d_copies = y_tile_size_h;
@@ -422,12 +450,13 @@ void ${func_name}(
     ;
 
     nnx_task_to_offload = is_border_tile ? &nnx_tasks[NNX_TASK_REMAINDER] : &nnx_tasks[NNX_TASK_BODY];
-
-    if (is_border_tile) {
-      nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}_update_dims(&(nnx_task_to_offload->cfg),
-          y_tile_size_h, y_tile_size_w, W_tile_size_nof, W_tile_size_nif);
-    }
-
+    // Scheremo: Add Padding support
+    /* nnx_input.height = x_tile_size_h;  */
+    /* nnx_input.width = x_tile_size_w; */
+    /* nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}(&(nnx_task_to_offload->cfg), nnx_weights, nnx_input, nnx_output); */
+    nnx_pad_input(&((*nnx_task_to_offload).cfg), p_t, p_r, p_b, p_l, 0);
+    nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}_update_dims(&(nnx_task_to_offload->cfg), y_tile_size_h, y_tile_size_w, W_tile_size_nof, W_tile_size_nif);
+    
     nnx_task_to_offload->infeat_ptr = x_tile_ptr;
     nnx_task_to_offload->weights_ptr = w_tile_ptr;
 % if FLAG_BATCHNORM == 1:
@@ -435,6 +464,7 @@ void ${func_name}(
     nnx_task_to_offload->scale_bias_ptr = bias_tile_ptr;
 % endif
     nnx_task_to_offload->outfeat_ptr = y_tile_ptr;
+
 
 
 //  /$$        /$$$$$$   /$$$$$$  /$$$$$$$ 
@@ -494,7 +524,7 @@ void ${func_name}(
 // | $$       /$$/\  $$| $$      | $$    $$
 // | $$$$$$$$| $$  \ $$| $$$$$$$$|  $$$$$$/
 // |________/|__/  |__/|________/ \______/ 
-
+    
     nnx_offload(nnx_task_to_offload);
     
     // Wait for data to arrive
@@ -516,7 +546,35 @@ void ${func_name}(
     if (i_tile == i_store_y + 2) {
       dory_dma_barrier(&DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
     }
+
+    print_task(*nnx_task_to_offload);
+    
     nnx_run_async();
+    nnx_cfg_t cfg = nnx_task_to_offload->cfg;
+    printf("in feat d0:\t\t %08x\r\n", cfg.input_stride.d0);
+    printf("in feat d1:\t\t %08x\r\n", cfg.input_stride.d1);
+    printf("in feat d2:\t\t %08x\r\n", cfg.input_stride.d2);
+
+    printf("out feat d0:\t\t %08x\r\n", cfg.output_stride.d0);
+    printf("out feat d1:\t\t %08x\r\n", cfg.output_stride.d1);
+    printf("out feat d2:\t\t %08x\r\n", cfg.output_stride.d2);
+
+    printf("weights d0:\t\t %08x\r\n", cfg.weights_stride.d0);
+    printf("weights d1:\t\t %08x\r\n", cfg.weights_stride.d1);
+    printf("weights d2:\t\t %08x\r\n", cfg.weights_stride.d2);
+
+    printf("subtile KoKi:\t\t %08x\r\n", cfg.subtile.remainder.KoKi);
+    printf("subtile HoWo:\t\t %08x\r\n", cfg.subtile.remainder.HoWo);
+    printf("subtile HiWi:\t\t %08x\r\n", cfg.subtile.remainder.HiWi);
+
+    printf("subtile KoKi:\t\t %08x\r\n", cfg.subtile.number.KoKi);
+    printf("subtile HoWo:\t\t %08x\r\n", cfg.subtile.number.HoWo);
+
+    printf("Padding:\t\t %08x\r\n", cfg.padding);
+    printf("weight_offset:\t\t %08x\r\n", cfg.weight_offset_factor);
+    printf("filter_mask:\t\t %08x\r\n", cfg.filter_mask);
+    printf("conf0:\t\t\t %08x\r\n", cfg.conf0);
+    
     //nnx_run_blocking();
 
 
@@ -617,6 +675,12 @@ void ${func_name}(
     if (is_load_x) i_db_x = !i_db_x;
     if (is_load_w) i_db_w = !i_db_w;
     i_db_y = !i_db_y;
+
+    for (int i=0;i<30;i++){
+      printf("%u, ", ((uint8_t*)x_tile_ptr)[i]);
+    }
+    printf("\r\n");
+    
   }
 
 
@@ -645,7 +709,6 @@ void ${func_name}(
   dory_dma_free(dory_dma_channel);
   
 % endif
-
   // clear NNX for cleanup
   nnx_soft_clear();
 }

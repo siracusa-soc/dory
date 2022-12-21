@@ -162,7 +162,7 @@ class C_Parser_Siracusa(Parser_HW_to_C):
     def create_hex_weight(self, node):
         # if not hasattr(node, "offloadable") or not node.offloadable:
         super().create_hex_weight(node)
-        if hasattr(node, "offloadable") and node.offloadable and self.config_file["use_wmem"]:
+        if hasattr(node, "offloadable") and node.offloadable and hasattr(node, "use_wmem") and node.use_wmem:
             constants = [0, 0, 0, 0]
             for name in node.constant_names:
                 if "weight" in name:

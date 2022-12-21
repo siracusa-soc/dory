@@ -64,11 +64,11 @@ static void checksum(const char *name, const uint8_t *d, size_t size, uint32_t s
         printf("OK\n");
     else{
         printf("Failed: true [%u] vs. calculated [%u]\n", sum_true, sum);
-	/* printf("Got the following:\r\n"); */
-	/* for (int i = 0; i < size; i++){ */
-	/*   printf("%u, ", d[i]); */
-	/* } */
-	/* printf("\r\n"); */
+	printf("Got the following:\r\n");
+	for (int i = 0; i < size; i++){
+	  printf("%u, ", d[i]);
+	}
+	printf("\r\n");
     }
 }
 #endif

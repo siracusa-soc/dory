@@ -116,7 +116,7 @@ class Tiler_Conv2D:
                 db_o = 2
 
             # geometrical constraint
-            solver.Add(tile_h_out * s[0] == (tile_h_in - (ks[0] - 1) + (s[0] - 1)))
+            solver.Add(tile_h_out * s[0] == ((tile_h_in) - (ks[0] - 1) + (s[0] - 1) +(p[0]+p[2])))
 
             if depthwise:
                 solver.Add(tile_n_in == tile_n_out)
@@ -124,7 +124,7 @@ class Tiler_Conv2D:
                 solver.Add(tile_n_in == in_ch)
 
             # size constraint
-            input_tile_dimension = db_x * in_ch * tile_h_in * in_dim[1] * self.node.input_activation_bits // 8
+            input_tile_dimension = db_x * in_ch * (tile_h_in + p[0]+p[2]) * (in_dim[1]+p[1]+p[3]) * self.node.input_activation_bits // 8
             output_tile_dimension = db_o * out_ch * tile_h_out * out_dim[1] * self.node.output_activation_bits // 8
             weight_tile_dimension = db_w * self.acc.weights_size(tile_n_out, tile_n_in, ks, self.node.weight_bits, depthwise)
 
@@ -170,7 +170,8 @@ class Tiler_Conv2D:
                 tile_n_out = collector.Value(best_solution, tile_n_out)
                 tile_h_in = collector.Value(best_solution, tile_h_in)
                 tile_h_out = collector.Value(best_solution, tile_h_out)
-                return [tile_n_out, in_ch], [in_ch, tile_h_in, in_dim[1]], [out_ch, tile_h_out, out_dim[1]]
+                return [tile_n_out, in_ch], [in_ch, tile_h_in, in_dim[1]], [out_ch, tile_h_out, out_dim[1]
+]
 
         raise RuntimeError("  Conv2d ERROR: no L3-L2 tiling found. Exiting...")
 
@@ -206,7 +207,7 @@ class Tiler_Conv2D:
         h_in   = self.node.tiling_dimensions["L2"]["input_dimensions"][1]
         h_out   = self.node.tiling_dimensions["L2"]["output_dimensions"][1]
         if self.node.tiling_dimensions["L3"]["output_dimensions"][1] > self.node.tiling_dimensions["L2"]["output_dimensions"][1]:
-            h_in   = self.node.tiling_dimensions["L2"]["output_dimensions"][1] * s[0] + (ks[0] - 1) - (s[0] - 1)
+            h_in   = self.node.tiling_dimensions["L2"]["output_dimensions"][1] * s[0] + (ks[0] - 1) - (s[0] - 1) + ( p[2] )
             in_mem = int(self.node.tiling_dimensions["L2"]["input_activation_memory"] / self.node.tiling_dimensions["L2"]["input_dimensions"][1] * h_in)
         if self.node.tiling_dimensions["L3"]["input_dimensions"][1] > self.node.tiling_dimensions["L2"]["input_dimensions"][1]:
             h_out  = int(np.floor((self.node.tiling_dimensions["L2"]["input_dimensions"][1] - (ks[0] - 1) + (s[0] - 1)) / s[0]))
@@ -246,8 +247,8 @@ class Tiler_Conv2D:
         solver = pywrapcp.Solver("simple_CP", parameters)
         tile_n_in = solver.IntVar(1, in_ch, 'tile_n_in')
         tile_n_out = solver.IntVar(1, out_ch, 'tile_n_out')
-        tile_h_in = solver.IntVar(ks[0], in_dim[0], 'tile_h_in')
-        tile_w_in = solver.IntVar(ks[1], in_dim[1], 'tile_w_in')
+        tile_h_in = solver.IntVar(ks[0], in_dim[0] + p[0], 'tile_h_in')
+        tile_w_in = solver.IntVar(ks[1], in_dim[1] + p[1], 'tile_w_in')
         tile_h_out = solver.IntVar(1, out_dim[0], 'tile_h_out')
         tile_w_out = solver.IntVar(1, out_dim[1], 'tile_w_out')
         zero_variable = solver.IntVar(0, 0, 'zero_variable')
@@ -268,9 +269,6 @@ class Tiler_Conv2D:
         solver.Add(tile_h_out * s[0] == (tile_h_in - (ks[0] - 1) + (s[0] - 1)))
         solver.Add(tile_w_out * s[1] == (tile_w_in - (ks[1] - 1) + (s[1] - 1)))
 
-        #SCHEREMO: This is some bull...
-        solver.Add(tile_h_in < 28)
-        solver.Add(tile_w_in < 28)
 
         if no_w_tiling:
             solver.Add(tile_n_out == out_ch)
@@ -298,7 +296,7 @@ class Tiler_Conv2D:
         #      n_in_tiles = # calculate number of tiles
         #      solver.Add(db_in == 2 if n_in_tiles > 2)
         #      -> To solve this problem, they do multiple rounds of tiling in L3 tiling
-        input_tile_dimension = db * tile_n_in * tile_h_in * tile_w_in * self.node.input_activation_bits // 8
+        input_tile_dimension = db * tile_n_in * (tile_h_in + p[2])* (tile_w_in + p[3]) * self.node.input_activation_bits // 8
         output_tile_dimension = db * tile_n_out * tile_h_out * tile_w_out * self.node.output_activation_bits // 8
         weight_tile_dimension = 0 if no_w_tiling else db * self.acc.weights_size(tile_n_out, tile_n_in, ks, self.node.weight_bits, depthwise)
 

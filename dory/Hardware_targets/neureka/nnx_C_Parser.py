@@ -92,7 +92,6 @@ class nnx_C_Parser(Parser_HW_to_C):
         mem_name = f'L{mem_level}'
         upper_mem_name = f'L{mem_level + 1}'
         no_w_tiling = mem_level == 1 and config_file['use_wmem'] and HW_description['memory']['wmem']
-
         def set_tmpl_var(name, val):
             prefix = f'{mem_name.lower()}_'
 
@@ -141,8 +140,12 @@ class nnx_C_Parser(Parser_HW_to_C):
         else:
             n_buffers = {'x': 1, 'y': 1, 'W': 1, 'k': 1, 'lambda': 1, 'b': 1}
 
+        effective_x_tile_size = [input_tile_shape[0]]
+        for idx, dim in enumerate(input_tile_shape[1:]):
+            effective_x_tile_size += [dim + node.pads[idx]]
+
         tile_sizes = {
-            'x': feature_len(input_tile_shape) * input_el_size,
+            'x': feature_len(effective_x_tile_size) * input_el_size,
             'y': feature_len(output_tile_shape) * output_el_size,
             'W': weights_tile_ko_len * weights_tile_ki_size,
             'k': tile_ko * activation_el_size,
@@ -150,6 +153,7 @@ class nnx_C_Parser(Parser_HW_to_C):
             'b': tile_ko * div_and_ceil(node.weight_bits, 8)
         }
 
+        # SCHEREMO: Add padding to x buffer
         buffer_sizes = {key: tile_sizes[key] * n_buffers[key] for key in tile_sizes.keys()}
 
         data_arrays = ['x', 'y', 'W']
@@ -199,3 +203,47 @@ class nnx_C_Parser(Parser_HW_to_C):
         nnx_C_Parser.__mem_tmpl_vars(tmpl_writer, node, 1, config_file, acc, HW_description)
         nnx_C_Parser.__mem_tmpl_vars(tmpl_writer, node, 2, config_file, acc, HW_description)
         return tmpl_writer
+
+    def create_hex_weight(self, node):
+        # if not hasattr(node, "offloadable") or not node.offloadable:
+        super().create_hex_weight(node)
+        if self.config_file["use_wmem"]:
+            constants = [0, 0, 0, 0]
+            for name in node.constant_names:
+                if "weight" in name:
+                    constants[0] = name
+                elif "bias" in name:
+                    constants[1] = name
+                elif "k" == name:
+                    constants[2] = name
+                elif "l" == name:
+                    constants[3] = name
+
+            weights = bytearray()
+            for const in constants:
+                if const != 0:
+                    weights += getattr(node, const)['value'].tobytes()
+
+            if len(weights) % 4 != 0:
+                weights += bytearray([0] * (4 - len(weights) % 4))
+
+            weightstr = ''
+            weightstr += f"#include \"{node.name}_weights.h\"\r\n"
+            weightstr += '__attribute__ ((section(".weightmem_mram"))) '
+            weightstr += f"unsigned char {node.name}_weights[{len(weights)}] = "
+            weightstr += "{"
+            weightstr += ", ".join("0x"+format(x, '02x') for x in weights)
+            weightstr += "};\r\n"
+
+            weightstr_h = f"#ifndef __INCLUDE_GUARD_{node.name}\r\n"
+            weightstr_h += f"#define __INCLUDE_GUARD_{node.name}\r\n"
+            weightstr_h += f"extern unsigned char {node.name}_weights[{len(weights)}];"
+            weightstr_h += f"\r\n#endif"
+
+            filepath = os.path.join(self.app_directory, 'src', node.name + "_weights.c")
+            with open(filepath, 'w') as file:
+                file.write(weightstr)
+
+            filepath = os.path.join(self.app_directory, 'inc', node.name + "_weights.h")
+            with open(filepath, 'w') as file:
+                file.write(weightstr_h)

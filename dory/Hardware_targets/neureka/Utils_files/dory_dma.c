@@ -121,6 +121,7 @@ void dory_dma_memcpy_3d_async(DMA_copy *copy) {
 }
 
 void dory_dma_memcpy_async(DMA_copy *copy) {
+  printf("Length: %08x\r\n", copy->number_of_2d_copies * copy->number_of_1d_copies * copy->length_1d_copy);
   if (copy->hwc_to_chw == 1) {
     dory_dma_memcpy_hwc_to_chw(copy);
   }

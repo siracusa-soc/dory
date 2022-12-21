@@ -1,4 +1,3 @@
-#!/bin/bash
 # network_generate.py
 # Alessio Burrello <alessio.burrello@unibo.it>
 #
@@ -97,8 +96,8 @@ def create_layer_node(params):
     node.input_dimensions = params['input_dimensions']
 
     def calculate_output_dimensions(input_dimensions, kernel_shape, stride, padding):
-        h = (input_dimensions[0] + padding[0] + padding[1] - kernel_shape[0]) / stride[0] + 1
-        w = (input_dimensions[1] + padding[2] + padding[3] - kernel_shape[1]) / stride[1] + 1
+        h = (input_dimensions[0] + padding[0] + padding[2] - kernel_shape[0]) / stride[0] + 1
+        w = (input_dimensions[1] + padding[1] + padding[3] - kernel_shape[1]) / stride[1] + 1
         return [int(h), int(w)]
 
     node.output_dimensions = calculate_output_dimensions(node.input_dimensions, node.kernel_shape, node.strides, node.pads)
@@ -215,7 +214,13 @@ def create_layer(i_layer, layer_node, dory_node, network_dir, hardware_target, i
         'value': w_save.numpy(),
         'layout': 'CoutCinK'
     }
-    y = F.conv2d(input=x, weight=w, stride=layer_node.strides, padding=layer_node.pads[0], groups=layer_node.group)
+
+    x_pad = torch.nn.functional.pad(x, (layer_node.pads[1],layer_node.pads[3],layer_node.pads[0],layer_node.pads[2]))
+    y = F.conv2d(input=x_pad, weight=w, stride=layer_node.strides, padding=0, groups=layer_node.group)
+
+    print(x_pad)
+    print(w)
+    print(y)
 
     if layer_node.output_activation_bits == 64:
         y_type = torch.int64
@@ -284,11 +289,11 @@ def layer_generate(
     onnx_manager = importlib.import_module(f'dory.Hardware_targets.{hardware_target}.HW_Parser')
     DORY_to_DORY_HW = onnx_manager.onnx_manager
     DORY_Graph = DORY_to_DORY_HW(DORY_Graph, json_configuration_file, json_configuration_file_root).full_graph_parsing()
-
     # Deployment of the model on the target architecture
     onnx_manager = importlib.import_module(f'dory.Hardware_targets.{hardware_target}.C_Parser')
+    # import IPython; IPython.embed()
     DORY_HW_to_C = onnx_manager.C_Parser
-    DORY_Graph = DORY_HW_to_C(DORY_Graph, json_configuration_file, json_configuration_file_root,
+    _DORY_Graph = DORY_HW_to_C(DORY_Graph, json_configuration_file, json_configuration_file_root,
                               verbose_level, perf_layer, optional, app_dir).full_graph_parsing()
 
 if __name__ == '__main__':

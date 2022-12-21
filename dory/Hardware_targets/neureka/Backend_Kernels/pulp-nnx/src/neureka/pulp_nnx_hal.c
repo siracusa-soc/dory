@@ -21,6 +21,11 @@
 #include "pmsis.h"
 #include "pulp_nnx_hal.h"
 
+#define PADDING_TOP(padding) (uint8_t)( ((padding)>>28) & 0xF)
+#define PADDING_RIGHT(padding) (uint8_t)( ((padding)>>24) & 0xF)
+#define PADDING_BOTTOM(padding) (uint8_t)( ((padding)>>20) & 0xF)
+#define PADDING_LEFT(padding) (uint8_t)( ((padding)>>16) & 0xF)
+
 static int qw, weight_d0_stride, outbytes;
 
 // TODO For all the following functions we use __builtin_pulp_OffsetedWrite and
@@ -246,10 +251,10 @@ nnx_error_code nnx_conv_1x1(nnx_cfg_t *cfg,
     return unsupportedFeatureBitwidth;
   }
 
-  if (input.height != output.height || input.width != output.width ||
-    input.depth != weights.depth || output.depth != weights.n_weights) {
-    return dimensionMismatch;
-  }
+  /* if (input.height != output.height || input.width != output.width || */
+  /*   input.depth != weights.depth || output.depth != weights.n_weights) { */
+  /*   return dimensionMismatch; */
+  /* } */
 
   const int mode16 =
     input.bitwidth == 16 ? NEUREKA_FLAG_MODE16 : NEUREKA_FLAG_MODE_BASIC;
@@ -273,19 +278,18 @@ nnx_error_code nnx_conv_1x1(nnx_cfg_t *cfg,
 
 nnx_error_code nnx_conv_3x3_update_dims(nnx_cfg_t *cfg,
     const int h_out, const int w_out, const int k_out, const int k_in) {
-
+  
   const int num_Ko = DIVNCEIL(k_out, NEUREKA_OUTPUT_CHANNEL_THROUGHPUT);
   const int num_Ki = DIVNCEIL(k_in, NEUREKA_INPUT_CHANNEL_THROUGHPUT_3x3);
   const int num_Ho = DIVNCEIL(h_out, NEUREKA_FILTER_SIZE);
   const int num_Wo = DIVNCEIL(w_out, NEUREKA_FILTER_SIZE);
 
   const int rem_Ko = REMAINDER(k_out, NEUREKA_OUTPUT_CHANNEL_THROUGHPUT);
-  const int rem_Ki = REMAINDER(k_in, NEUREKA_INPUT_CHANNEL_THROUGHPUT_3x3);
+  const int rem_Ki = REMAINDER(k_in , NEUREKA_INPUT_CHANNEL_THROUGHPUT_3x3);
   const int rem_Ho = REMAINDER(h_out, NEUREKA_FILTER_SIZE);
   const int rem_Wo = REMAINDER(w_out, NEUREKA_FILTER_SIZE);
-  const int rem_Hi = rem_Ho + 2;
-  const int rem_Wi = rem_Wo + 2;
-
+  const int rem_Hi = rem_Ho + 2 - PADDING_BOTTOM(cfg->padding);
+  const int rem_Wi = rem_Wo + 2 - PADDING_RIGHT(cfg->padding);
   const nnx_subtile_t subtile = {
     .number = {
       .KoKi = CONCAT_HALF(num_Ko, num_Ki),
@@ -302,7 +306,7 @@ nnx_error_code nnx_conv_3x3_update_dims(nnx_cfg_t *cfg,
   // Strides
   const nnx_stride_t input_stride = {
     .d0 = k_in,
-    .d1 = k_in * (w_out + 2),
+    .d1 = k_in * (w_out + 2 - PADDING_LEFT(cfg->padding) - PADDING_RIGHT(cfg->padding)),
     .d2 = k_in * NEUREKA_FILTER_BUFFER_SIZE * NEUREKA_FILTER_BUFFER_SIZE
   };
   cfg->input_stride = input_stride;
@@ -310,8 +314,8 @@ nnx_error_code nnx_conv_3x3_update_dims(nnx_cfg_t *cfg,
 
   const nnx_stride_t output_stride = {
     .d0 = 32,
-    .d1 = k_out * outbytes,
-    .d2 = k_out * outbytes * w_out
+    .d1 = (k_out) * outbytes,
+    .d2 = k_out * outbytes * (w_out)
   };
   cfg->output_stride = output_stride;
 
@@ -345,10 +349,10 @@ nnx_error_code nnx_conv_3x3(nnx_cfg_t *cfg,
     return unsupportedFeatureBitwidth;
   }
 
-  if (input.height - 2 != output.height || input.width - 2 != output.width ||
-    input.depth != weights.depth || output.depth != weights.n_weights) {
-    return dimensionMismatch;
-  }
+  /* if (input.height - 2 != output.height || input.width - 2 != output.width || */
+  /*   input.depth != weights.depth || output.depth != weights.n_weights) { */
+  /*   return dimensionMismatch; */
+  /* } */
   const int mode16 =
     input.bitwidth == 16 ? NEUREKA_FLAG_MODE16 : NEUREKA_FLAG_MODE_BASIC;
 
@@ -381,9 +385,12 @@ nnx_error_code nnx_conv_3x3_dw_update_dims(nnx_cfg_t *cfg,
   const int rem_Ki = rem_Ko;
   const int rem_Ho = REMAINDER(h_out, NEUREKA_FILTER_SIZE);
   const int rem_Wo = REMAINDER(w_out, NEUREKA_FILTER_SIZE);
-  const int rem_Hi = rem_Ho + 2;
-  const int rem_Wi = rem_Wo + 2;
+  const int rem_Hi = rem_Ho + 2 - PADDING_BOTTOM(cfg->padding);
+  const int rem_Wi = rem_Wo + 2 - PADDING_RIGHT(cfg->padding);
 
+  printf("%u %u %u %u\r\n", PADDING_TOP(cfg->padding), PADDING_BOTTOM(cfg->padding), PADDING_LEFT(cfg->padding),PADDING_RIGHT(cfg->padding));
+  printf("%u\r\n", cfg->padding);
+    
   const nnx_subtile_t subtile = {
     .number = {
       .KoKi = CONCAT_HALF(num_Ko, num_Ki),
@@ -400,20 +407,22 @@ nnx_error_code nnx_conv_3x3_dw_update_dims(nnx_cfg_t *cfg,
   // Strides
   const nnx_stride_t input_stride = {
     .d0 = k_out,
-    .d1 = k_out * (w_out + 2),
-    .d2 = 0 // Unused
+    .d1 = k_out * (w_out + 2 - PADDING_RIGHT(cfg->padding) - PADDING_LEFT(cfg->padding)),
+    .d2 = 0
+    //.d2 = k_in * 3 * 3 //copying arpan
   };
   cfg->input_stride = input_stride;
 
   const nnx_stride_t output_stride = {
     .d0 = 32,
     .d1 = k_out * outbytes,
-    .d2 = k_out * outbytes * w_out
+    .d2 = k_out * outbytes * w_out 
   };
   cfg->output_stride = output_stride;
 
   const nnx_stride_t weights_stride = {
-    .d0 = NEUREKA_FILTER_SIZE * NEUREKA_FILTER_SIZE * weight_d0_stride,
+    //.d0 = NEUREKA_FILTER_SIZE * NEUREKA_FILTER_SIZE * weight_d0_stride,
+    .d0 = weight_d0_stride * 8,
     .d1 = 0,
     .d2 = 0  // Unused
   };
@@ -442,15 +451,16 @@ nnx_error_code nnx_conv_3x3_dw(nnx_cfg_t *cfg,
     return unsupportedFeatureBitwidth;
   }
 
-  if (input.height - 2 != output.height || input.width - 2 != output.width ||
-    input.depth != output.depth) {
-    return dimensionMismatch;
-  }
+  // Exception for padding?
+  /* if (input.height - 2 != output.height || input.width - 2 != output.width || */
+  /*   input.depth != output.depth) { */
+  /*   return dimensionMismatch; */
+  /* } */
 
   const int mode16 =
     input.bitwidth == 16 ? NEUREKA_FLAG_MODE16 : NEUREKA_FLAG_MODE_BASIC;
 
-  BIT_SET(cfg->conf0, weights.offset_mode | NEUREKA_FLAG_MODE_3x3_DW | mode16 |
+  BIT_SET(cfg->conf0, weights.offset_mode | NEUREKA_FLAG_MODE_3x3_DW | NEUREKA_FLAG_ACTIVATION_PREFETCH | mode16 |
                  (weights.bitwidth - 1));
 
   // Global static variables needed by update_dims

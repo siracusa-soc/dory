@@ -136,15 +136,16 @@ class onnx_manager_Siracusa(Parser_DORY_to_HW):
         if node.op_type == "BNReluConv" and node.weight_bits == 8 and node.input_activation_bits == 8 and node.output_activation_type == 'uint' and node.input_activation_type == 'uint':
             #SCHEREMO: Check if it's a pointwise convolution:
             if node.group == 1 and node.kernel_shape == [1,1]:
-                print("Offloading to NEUREKA...")
-                return True
+                print("1x1 dense - Offloading to NEUREKA...")
+                return False
             #SCHEREMO: Check if it's a dense 3x3 convolution:
             elif node.input_channels == node.output_channels and node.group == 1 and node.kernel_shape == [3,3]:
-                print("Offloading to NEUREKA...")
-                return True
-            elif node.input_channels == node.output_channels and node.group == node.input_channels and node.kernel_shape == [3,3]:
-                print("Not offloading to NEUREKA...")
+                print("3x3 dense - Offloading to NEUREKA...")
                 return False
+            elif node.input_channels == node.output_channels and node.group == node.input_channels and node.kernel_shape == [3,3]: #and node.input_dimensions[0] < 8:
+                #print("Not offloading to NEUREKA...")
+                print("3x3 dw - Offloading to NEUREKA...")
+                return True
 
         return False
 

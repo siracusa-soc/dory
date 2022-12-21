@@ -145,6 +145,7 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     p =       node.pads
     conv_overlap_h = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
     padding_top = p[0]; padding_left = p[1]; padding_bottom = p[2]; padding_right = p[3];
+
     name_layer = node.name + '.h'
     conv_overlap1 = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
     conv_overlap2 = 2 * (ks[1] // 2) + ks[1] % 2 - 1 - (s[1] - 1)
@@ -309,9 +310,9 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     if has_bias == 1:
         tk['l2_off_bias'] = int(math.ceil(tk['nof'] * tk['nif'] * fs1 * fs2 * ds_W / 8.0 ))
     if n_in == tile_n_in and w_in == tile_w_in and h_in == tile_h_in:
-        x_buffer_size = int(math.ceil(ds_x * tile_n_in * tile_h_in * tile_w_in / 8.0))
+        x_buffer_size = int(math.ceil(ds_x * tile_n_in * (tile_h_in) * (tile_w_in) / 8.0))
     else:
-        x_buffer_size = tk['double_buffering'] * int(math.ceil(ds_x * tile_n_in * tile_h_in * tile_w_in / 8.0))
+        x_buffer_size = tk['double_buffering'] * int(math.ceil(ds_x * tile_n_in * (tile_h_in) * (tile_w_in) / 8.0))
         if x_buffer_size % 16 != 0:
             x_buffer_size = x_buffer_size
     if (n_in == (tile_n_in * number_of_clusters) and w_in == tile_w_in and h_in == tile_h_in and n_out == (tile_n_out * number_of_clusters) and n_in > number_of_clusters) \

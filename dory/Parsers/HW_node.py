@@ -23,6 +23,7 @@ import numpy as np
 import copy
 import os
 
+from operator import add
 # DORY modules
 from .DORY_node import DORY_node
 from .Layer_node import Layer_node
@@ -91,9 +92,14 @@ class HW_node(DORY_node):
                     constants_memory+=weights_dim[0]*self.constant_bits/8
                 if "bias" in name:
                     bias_memory+=weights_dim[0]*self.bias_bits/8
+
+            effective_input_size = [self.tiling_dimensions["L{}".format(level-1)]["input_dimensions"][0]]
+            for idx, i in enumerate(self.tiling_dimensions["L{}".format(level-1)]["input_dimensions"][1:]):
+                effective_input_size += [i + self.pads[idx]]
+            effective_input_size = self.tiling_dimensions["L{}".format(level-1)]["input_dimensions"]
             self.tiling_dimensions["L{}".format(level-1)]["bias_memory"] = int(bias_memory)
             self.tiling_dimensions["L{}".format(level-1)]["constants_memory"] = int(constants_memory)
-            self.tiling_dimensions["L{}".format(level-1)]["input_activation_memory"] = np.prod(self.tiling_dimensions["L{}".format(level-1)]["input_dimensions"])*self.input_activation_bits/8
+            self.tiling_dimensions["L{}".format(level-1)]["input_activation_memory"] = np.prod(effective_input_size)*self.input_activation_bits/8
             self.tiling_dimensions["L{}".format(level-1)]["output_activation_memory"] = np.prod(self.tiling_dimensions["L{}".format(level-1)]["output_dimensions"])*self.output_activation_bits/8
 
     def rename_weights(self):

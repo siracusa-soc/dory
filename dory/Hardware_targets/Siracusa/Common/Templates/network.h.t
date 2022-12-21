@@ -33,8 +33,8 @@
 #include <stddef.h>
 
 %for node in DORY_HW_graph:
-   %if hasattr(node, "offloadable") and node.offloadable:
-   #include "${node.name}_weights.h"
+   %if hasattr(node, "offloadable") and node.offloadable and hasattr(node, "use_wmem") and node.use_wmem:
+#include "${node.name}_weights.h"
    %endif
 %endfor
    
@@ -113,7 +113,6 @@ static int L3_output_layers[${len(DORY_HW_graph)}] = {\
 static int allocate_layer[${len(DORY_HW_graph)}] = {\
 % for node in DORY_HW_graph:
 % if (node.tiling_dimensions["L3"]["weights_dimensions"] == node.tiling_dimensions["L2"]["weights_dimensions"] and ('FullyConnected' in node.name or 'Conv' in node.name)):
-	     // and not (hasattr(node, "offloadable") and hasattr(node, "use_wmem") and node.offloadable and node.use_wmem):
 1${'' if loop.last else ', '}\
 % else:
 0${'' if loop.last else ', '}\
@@ -229,14 +228,12 @@ ${int(node.tiling_dimensions["L2"]["output_activation_memory"])}${'' if loop.las
 static int layer_with_weights[${len(DORY_HW_graph)}] = {\
 % for node in DORY_HW_graph:
 % if ('Conv' in node.name or 'FullyConnected' in node.name):
-//  and not (hasattr(node, "offloadable") and hasattr(node, "use_wmem") and node.offloadable and node.use_wmem):
 1${'' if loop.last else ', '}\
 % else:
 0${'' if loop.last else ', '}\
 % endif
 % endfor
 };
-%if offload:
 static void* layer_wmem_ptr[${len(DORY_HW_graph)}] = {\
 % for node in DORY_HW_graph:
 % if hasattr(node, "offloadable") and node.offloadable and hasattr(node, "use_wmem") and node.use_wmem:
@@ -246,7 +243,6 @@ NULL${'' if loop.last else ', '}\
 % endif
 % endfor
 };
-%endif
 % if 'Yes' in performance:
 static int NODEs_MACS[${len(DORY_HW_graph)}] = {\
 % for node in DORY_HW_graph:

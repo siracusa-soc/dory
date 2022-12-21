@@ -32,6 +32,13 @@
 #include "bsp/ram/hyperram.h"
 #include "mem.h"
 
+%for node in DORY_HW_graph:
+   %if use_wmem:
+#include "${node.name}_weights.h"
+   %endif
+%endfor
+
+   
 typedef struct {
     unsigned int L3_input;
     unsigned int L3_output;
