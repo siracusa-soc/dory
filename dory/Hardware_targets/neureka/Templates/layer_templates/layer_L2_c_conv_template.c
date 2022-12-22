@@ -357,6 +357,7 @@ void ${func_name}(
     ///////////////////////
 
     static uint8_t p_t, p_l, p_b, p_r = 0;
+    static uint32_t x_offset = 0;
     printf("i_h: %u\r\n", i_h);
     
     if(i_h==0){
@@ -384,17 +385,22 @@ void ${func_name}(
       x_tile_size_h = (i_h + 1 == ${tile_dim_h}) ? ${x_tile_size_h_last} : ${x_tile_size_h};
       x_tile_size_w = (i_w + 1 == ${tile_dim_w}) ? ${x_tile_size_w_last} : ${x_tile_size_w};
       x_length_nif_byte = (i_nif + 1 == ${tile_dim_nif}) ? ${x_tile_size_nif_byte_last} : ${x_tile_size_nif_byte};
-      
-      pad_offset_h = 0;
-      pad_offset_w = 0;
 
-      /* pad_offset_h = 0; */
-      /* pad_offset_w = 0; */
       
-      DMA_copy_x.ext = dory_get_tile_3d(l2_x, i_h , i_w, i_nif, ${x_tile_size_h}, ${x_tile_size_w}, ${x_tile_size_nif}, ${x_w}, ${nif*g}, ${conv_overlap1}, ${conv_overlap2}, 0, pad_offset_h, pad_offset_w, 0, ${x_data_size_byte});
-      DMA_copy_x.loc = x_tile_ptr + (p_t*x_tile_size_w*${x_tile_size_nif}) + p_l*${x_tile_size_nif};
+      pad_offset_h = i_h > 0 ? ${padding_top} : 0;
+      //pad_offset_w = i_w > 0 ? ${padding_left} : 0;
+      pad_offset_w = i_w > 0 ? ${padding_left} : 0;
+      
+      DMA_copy_x.ext = dory_get_tile_3d(l2_x, i_h ,i_w, i_nif, ${x_tile_size_h}, ${x_tile_size_w}, ${x_tile_size_nif}, ${x_w}, ${nif*g}, ${conv_overlap1}, ${conv_overlap2}, 0, pad_offset_h, pad_offset_w, 0, ${x_data_size_byte});
+      //DMA_copy_x.loc = x_tile_ptr + (p_t*x_tile_size_w*${x_tile_size_nif}) + p_l*${x_tile_size_nif};
+      x_offset = (p_t*(x_tile_size_w - p_l)*x_length_nif_byte) + p_l*x_length_nif_byte;
+      printf("x_tile_ptr: %p\r\n", x_tile_ptr);
+      printf("x_offset: %u\r\n", x_offset);
+      
+      DMA_copy_x.loc = x_tile_ptr + x_offset;
+      
       DMA_copy_x.number_of_2d_copies = x_tile_size_h;
-      DMA_copy_x.number_of_1d_copies = x_tile_size_w;
+      DMA_copy_x.number_of_1d_copies = x_tile_size_w - p_l;
       DMA_copy_x.length_1d_copy = x_length_nif_byte;
     }
 
@@ -420,7 +426,7 @@ void ${func_name}(
       DMA_copy_lambda.length_1d_copy = W_tile_size_nof * ${int(act_dim_bit/8)};
 % endif
     }
-
+    
     y_tile_size_h = (i_h + 1 == ${tile_dim_h}) ? ${y_tile_size_h_last} : ${y_tile_size_h};
     y_tile_size_w = (i_w + 1 == ${tile_dim_w}) ? ${y_tile_size_w_last} : ${y_tile_size_w};
     y_length_nof_byte = (i_nof + 1 == ${tile_dim_nof}) ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
@@ -451,9 +457,9 @@ void ${func_name}(
 
     nnx_task_to_offload = is_border_tile ? &nnx_tasks[NNX_TASK_REMAINDER] : &nnx_tasks[NNX_TASK_BODY];
     // Scheremo: Add Padding support
-    /* nnx_input.height = x_tile_size_h;  */
-    /* nnx_input.width = x_tile_size_w; */
-    /* nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}(&(nnx_task_to_offload->cfg), nnx_weights, nnx_input, nnx_output); */
+    nnx_input.height = x_tile_size_h;
+    nnx_input.width = x_tile_size_w;
+    nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}(&(nnx_task_to_offload->cfg), nnx_weights, nnx_input, nnx_output);
     nnx_pad_input(&((*nnx_task_to_offload).cfg), p_t, p_r, p_b, p_l, 0);
     nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}_update_dims(&(nnx_task_to_offload->cfg), y_tile_size_h, y_tile_size_w, W_tile_size_nof, W_tile_size_nif);
     
@@ -676,11 +682,31 @@ void ${func_name}(
     if (is_load_w) i_db_w = !i_db_w;
     i_db_y = !i_db_y;
 
+    printf("Input: ");
     for (int i=0;i<30;i++){
       printf("%u, ", ((uint8_t*)x_tile_ptr)[i]);
     }
     printf("\r\n");
-    
+    printf("Input @ linebreak: ");
+    for (int i=0;i<30;i++){
+      printf("%u, ", ((uint8_t*)x_tile_ptr)[((x_tile_size_w)*x_length_nif_byte) + i]);
+    }
+    printf("\r\n");
+    printf("Input @ linebreak 2: ");
+    for (int i=0;i<30;i++){
+      printf("%u, ", ((uint8_t*)x_tile_ptr)[((2*x_tile_size_w)*x_length_nif_byte) + i]);
+    }
+    printf("\r\n");
+    nnx_wait_empty();
+    printf("Output1: ");
+    for (int i=0;i<30;i++){
+      printf("%u, ", ((uint8_t*)y_tile_ptr)[i]);
+    }
+    printf("...\r\n");
+    for (int i=0;i<30;i++){
+      printf("%u, ", ((uint8_t*)y_tile_ptr)[y_tile_size_w*y_tile_size_h-30 + i]);
+    }
+    printf("\r\n");
   }
 
 
