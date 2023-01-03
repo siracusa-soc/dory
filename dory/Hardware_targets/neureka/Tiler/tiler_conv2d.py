@@ -116,7 +116,8 @@ class Tiler_Conv2D:
                 db_o = 2
 
             # geometrical constraint
-            solver.Add(tile_h_out * s[0] == ((tile_h_in) - (ks[0] - 1) + (s[0] - 1) +(p[0]+p[2])))
+            # solver.Add(tile_h_out * s[0] == ((tile_h_in) - (ks[0] - 1) + (s[0] - 1) +(p[0]+p[2])))
+            solver.Add(tile_h_out * s[0] == (((tile_h_in) - (ks[0] - 1) + (p[0]+p[2]))) + ((((tile_h_in) - (ks[0] - 1) + (p[0]+p[2])))%s[0]))
 
             if depthwise:
                 solver.Add(tile_n_in == tile_n_out)
@@ -124,7 +125,7 @@ class Tiler_Conv2D:
                 solver.Add(tile_n_in == in_ch)
 
             # size constraint
-            input_tile_dimension = db_x * in_ch * (tile_h_in + p[0]+p[2]) * (in_dim[1]+p[1]+p[3]) * self.node.input_activation_bits // 8
+            input_tile_dimension = db_x * in_ch * (tile_h_in + p[0]) * (in_dim[1]+p[1]) * self.node.input_activation_bits // 8
             output_tile_dimension = db_o * out_ch * tile_h_out * out_dim[1] * self.node.output_activation_bits // 8
             weight_tile_dimension = db_w * self.acc.weights_size(tile_n_out, tile_n_in, ks, self.node.weight_bits, depthwise)
 
@@ -223,7 +224,7 @@ class Tiler_Conv2D:
         buffer_total = weight_memory + self.node.tiling_dimensions["L2"]["constants_memory"] + self.node.tiling_dimensions["L2"]["bias_memory"] + in_mem + out_mem
         weight_memory = 0 if no_w_tiling else self.node.tiling_dimensions["L2"]["weight_memory"]
 
-        # return immediately if the memory fits the L1
+        #return immediately if the memory fits the L1
         if buffer_total <= L1_memory:
             return (self.node.tiling_dimensions["L2"]["weights_dimensions"],
                     [self.node.tiling_dimensions["L2"]["input_dimensions"][0],
@@ -247,8 +248,8 @@ class Tiler_Conv2D:
         solver = pywrapcp.Solver("simple_CP", parameters)
         tile_n_in = solver.IntVar(1, in_ch, 'tile_n_in')
         tile_n_out = solver.IntVar(1, out_ch, 'tile_n_out')
-        tile_h_in = solver.IntVar(ks[0], in_dim[0] + p[0], 'tile_h_in')
-        tile_w_in = solver.IntVar(ks[1], in_dim[1] + p[1], 'tile_w_in')
+        tile_h_in = solver.IntVar(ks[0], in_dim[0], 'tile_h_in')
+        tile_w_in = solver.IntVar(ks[1], in_dim[1], 'tile_w_in')
         tile_h_out = solver.IntVar(1, out_dim[0], 'tile_h_out')
         tile_w_out = solver.IntVar(1, out_dim[1], 'tile_w_out')
         zero_variable = solver.IntVar(0, 0, 'zero_variable')
@@ -266,9 +267,9 @@ class Tiler_Conv2D:
         #     solver.Add(tile_w_in == in_dim[1])
         #     solver.Add(tile_w_out == out_dim[1])
 
+
         solver.Add(tile_h_out * s[0] == (tile_h_in - (ks[0] - 1) + (s[0] - 1)))
         solver.Add(tile_w_out * s[1] == (tile_w_in - (ks[1] - 1) + (s[1] - 1)))
-
 
         if no_w_tiling:
             solver.Add(tile_n_out == out_ch)
