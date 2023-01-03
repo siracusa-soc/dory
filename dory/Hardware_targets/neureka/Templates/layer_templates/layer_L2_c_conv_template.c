@@ -358,7 +358,6 @@ void ${func_name}(
 
     static uint8_t p_t, p_l, p_b, p_r = 0;
     static uint32_t x_offset = 0;
-    printf("i_h: %u\r\n", i_h);
     
     if(i_h==0){
       p_t = ${padding_top};
@@ -393,14 +392,12 @@ void ${func_name}(
       
       DMA_copy_x.ext = dory_get_tile_3d(l2_x, i_h ,i_w, i_nif, ${x_tile_size_h}, ${x_tile_size_w}, ${x_tile_size_nif}, ${x_w}, ${nif*g}, ${conv_overlap1}, ${conv_overlap2}, 0, pad_offset_h, pad_offset_w, 0, ${x_data_size_byte});
       //DMA_copy_x.loc = x_tile_ptr + (p_t*x_tile_size_w*${x_tile_size_nif}) + p_l*${x_tile_size_nif};
-      x_offset = (p_t*(x_tile_size_w - p_l)*x_length_nif_byte) + p_l*x_length_nif_byte;
-      printf("x_tile_ptr: %p\r\n", x_tile_ptr);
-      printf("x_offset: %u\r\n", x_offset);
+      x_offset = (p_t*(x_tile_size_w - (p_l * (${tile_dim_w} > 1)))*x_length_nif_byte + p_l*x_length_nif_byte);
       
       DMA_copy_x.loc = x_tile_ptr + x_offset;
       
       DMA_copy_x.number_of_2d_copies = x_tile_size_h;
-      DMA_copy_x.number_of_1d_copies = x_tile_size_w - p_l;
+      DMA_copy_x.number_of_1d_copies = x_tile_size_w - (p_l * (${tile_dim_w} > 1));
       DMA_copy_x.length_1d_copy = x_length_nif_byte;
     }
 
@@ -553,33 +550,33 @@ void ${func_name}(
       dory_dma_barrier(&DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
     }
 
-    print_task(*nnx_task_to_offload);
+    //print_task(*nnx_task_to_offload);
     
     nnx_run_async();
     nnx_cfg_t cfg = nnx_task_to_offload->cfg;
-    printf("in feat d0:\t\t %08x\r\n", cfg.input_stride.d0);
-    printf("in feat d1:\t\t %08x\r\n", cfg.input_stride.d1);
-    printf("in feat d2:\t\t %08x\r\n", cfg.input_stride.d2);
+    /* printf("in feat d0:\t\t %08x\r\n", cfg.input_stride.d0); */
+    /* printf("in feat d1:\t\t %08x\r\n", cfg.input_stride.d1); */
+    /* printf("in feat d2:\t\t %08x\r\n", cfg.input_stride.d2); */
 
-    printf("out feat d0:\t\t %08x\r\n", cfg.output_stride.d0);
-    printf("out feat d1:\t\t %08x\r\n", cfg.output_stride.d1);
-    printf("out feat d2:\t\t %08x\r\n", cfg.output_stride.d2);
+    /* printf("out feat d0:\t\t %08x\r\n", cfg.output_stride.d0); */
+    /* printf("out feat d1:\t\t %08x\r\n", cfg.output_stride.d1); */
+    /* printf("out feat d2:\t\t %08x\r\n", cfg.output_stride.d2); */
 
-    printf("weights d0:\t\t %08x\r\n", cfg.weights_stride.d0);
-    printf("weights d1:\t\t %08x\r\n", cfg.weights_stride.d1);
-    printf("weights d2:\t\t %08x\r\n", cfg.weights_stride.d2);
+    /* printf("weights d0:\t\t %08x\r\n", cfg.weights_stride.d0); */
+    /* printf("weights d1:\t\t %08x\r\n", cfg.weights_stride.d1); */
+    /* printf("weights d2:\t\t %08x\r\n", cfg.weights_stride.d2); */
 
-    printf("subtile KoKi:\t\t %08x\r\n", cfg.subtile.remainder.KoKi);
-    printf("subtile HoWo:\t\t %08x\r\n", cfg.subtile.remainder.HoWo);
-    printf("subtile HiWi:\t\t %08x\r\n", cfg.subtile.remainder.HiWi);
+    /* printf("subtile KoKi:\t\t %08x\r\n", cfg.subtile.remainder.KoKi); */
+    /* printf("subtile HoWo:\t\t %08x\r\n", cfg.subtile.remainder.HoWo); */
+    /* printf("subtile HiWi:\t\t %08x\r\n", cfg.subtile.remainder.HiWi); */
 
-    printf("subtile KoKi:\t\t %08x\r\n", cfg.subtile.number.KoKi);
-    printf("subtile HoWo:\t\t %08x\r\n", cfg.subtile.number.HoWo);
+    /* printf("subtile KoKi:\t\t %08x\r\n", cfg.subtile.number.KoKi); */
+    /* printf("subtile HoWo:\t\t %08x\r\n", cfg.subtile.number.HoWo); */
 
-    printf("Padding:\t\t %08x\r\n", cfg.padding);
-    printf("weight_offset:\t\t %08x\r\n", cfg.weight_offset_factor);
-    printf("filter_mask:\t\t %08x\r\n", cfg.filter_mask);
-    printf("conf0:\t\t\t %08x\r\n", cfg.conf0);
+    /* printf("Padding:\t\t %08x\r\n", cfg.padding); */
+    /* printf("weight_offset:\t\t %08x\r\n", cfg.weight_offset_factor); */
+    /* printf("filter_mask:\t\t %08x\r\n", cfg.filter_mask); */
+    /* printf("conf0:\t\t\t %08x\r\n", cfg.conf0); */
     
     //nnx_run_blocking();
 
@@ -682,31 +679,31 @@ void ${func_name}(
     if (is_load_w) i_db_w = !i_db_w;
     i_db_y = !i_db_y;
 
-    printf("Input: ");
-    for (int i=0;i<30;i++){
-      printf("%u, ", ((uint8_t*)x_tile_ptr)[i]);
-    }
-    printf("\r\n");
-    printf("Input @ linebreak: ");
-    for (int i=0;i<30;i++){
-      printf("%u, ", ((uint8_t*)x_tile_ptr)[((x_tile_size_w)*x_length_nif_byte) + i]);
-    }
-    printf("\r\n");
-    printf("Input @ linebreak 2: ");
-    for (int i=0;i<30;i++){
-      printf("%u, ", ((uint8_t*)x_tile_ptr)[((2*x_tile_size_w)*x_length_nif_byte) + i]);
-    }
-    printf("\r\n");
-    nnx_wait_empty();
-    printf("Output1: ");
-    for (int i=0;i<30;i++){
-      printf("%u, ", ((uint8_t*)y_tile_ptr)[i]);
-    }
-    printf("...\r\n");
-    for (int i=0;i<30;i++){
-      printf("%u, ", ((uint8_t*)y_tile_ptr)[y_tile_size_w*y_tile_size_h-30 + i]);
-    }
-    printf("\r\n");
+    /* printf("Input: "); */
+    /* for (int i=0;i<30;i++){ */
+    /*   printf("%u, ", ((uint8_t*)x_tile_ptr)[i]); */
+    /* } */
+    /* printf("\r\n"); */
+    /* printf("Input @ linebreak: "); */
+    /* for (int i=0;i<30;i++){ */
+    /*   printf("%u, ", ((uint8_t*)x_tile_ptr)[((x_tile_size_w)*x_length_nif_byte) + i]); */
+    /* } */
+    /* printf("\r\n"); */
+    /* printf("Input @ linebreak 2: "); */
+    /* for (int i=0;i<30;i++){ */
+    /*   printf("%u, ", ((uint8_t*)x_tile_ptr)[((2*x_tile_size_w)*x_length_nif_byte) + i]); */
+    /* } */
+    /* printf("\r\n"); */
+    /* nnx_wait_empty(); */
+    /* printf("Output1: "); */
+    /* for (int i=0;i<30;i++){ */
+    /*   printf("%u, ", ((uint8_t*)y_tile_ptr)[i]); */
+    /* } */
+    /* printf("...\r\n"); */
+    /* for (int i=0;i<30;i++){ */
+    /*   printf("%u, ", ((uint8_t*)y_tile_ptr)[y_tile_size_w*y_tile_size_h-30 + i]); */
+    /* } */
+    /* printf("\r\n"); */
   }
 
 
