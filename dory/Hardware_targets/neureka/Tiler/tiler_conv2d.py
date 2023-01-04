@@ -66,7 +66,8 @@ class Tiler_Conv2D:
             input_in_l2 = False
 
         # tiling for L3-L2 management
-        buffer_total = self.node.input_activation_memory + self.node.output_activation_memory + self.node.weight_memory + self.node.bias_memory + self.node.constants_memory
+        buffer_total = self.node.input_activation_memory + self.node.output_activation_memory*int(np.prod(self.node.strides)) + self.node.weight_memory + self.node.bias_memory + self.node.constants_memory
+        # buffer_total = self.node.input_activation_memory + self.node.output_activation_memory + self.node.weight_memory + self.node.bias_memory + self.node.constants_memory
         if (buffer_total <= L2_memory) and input_in_l2:
             return ([self.node.output_channels, self.node.input_channels],
                     [self.node.input_channels, self.node.input_dimensions[0], self.node.input_dimensions[1]],
@@ -134,7 +135,7 @@ class Tiler_Conv2D:
                 if name in self.node.constant_names:
                     constants_tile_dimension += db_w * tile_n_out * self.node.constant_bits // 8
 
-            constraint_all = input_tile_dimension + output_tile_dimension + weight_tile_dimension + constants_tile_dimension
+            constraint_all = input_tile_dimension + output_tile_dimension*self.node.strides[0]*self.node.strides[1] + weight_tile_dimension + constants_tile_dimension
 
             solver.Add(constraint_all <= L2_memory)
 
@@ -203,7 +204,7 @@ class Tiler_Conv2D:
 
         # We are recalculating these variables because the output could be tiled but the input isn't or vice versa.
         in_mem = self.node.tiling_dimensions["L2"]["input_activation_memory"]
-        out_mem = self.node.tiling_dimensions["L2"]["output_activation_memory"]
+        out_mem = self.node.tiling_dimensions["L2"]["output_activation_memory"]*int(np.prod(self.node.strides))
         w_in   = self.node.tiling_dimensions["L2"]["input_dimensions"][2]
         h_in   = self.node.tiling_dimensions["L2"]["input_dimensions"][1]
         h_out   = self.node.tiling_dimensions["L2"]["output_dimensions"][1]
@@ -222,6 +223,7 @@ class Tiler_Conv2D:
         weight_memory = self.node.tiling_dimensions["L2"]["weight_memory"]
 
         buffer_total = weight_memory + self.node.tiling_dimensions["L2"]["constants_memory"] + self.node.tiling_dimensions["L2"]["bias_memory"] + in_mem + out_mem
+        # buffer_total = weight_memory + self.node.tiling_dimensions["L2"]["constants_memory"] + self.node.tiling_dimensions["L2"]["bias_memory"] + in_mem + out_mem
         weight_memory = 0 if no_w_tiling else self.node.tiling_dimensions["L2"]["weight_memory"]
 
         #return immediately if the memory fits the L1
@@ -268,8 +270,10 @@ class Tiler_Conv2D:
         #     solver.Add(tile_w_out == out_dim[1])
 
 
-        solver.Add(tile_h_out * s[0] == (tile_h_in - (ks[0] - 1) + (s[0] - 1)))
-        solver.Add(tile_w_out * s[1] == (tile_w_in - (ks[1] - 1) + (s[1] - 1)))
+        solver.Add(tile_h_out == (tile_h_in - (ks[0] - 1)))
+        solver.Add(tile_w_out == (tile_w_in - (ks[1] - 1)))
+        # solver.Add(tile_h_out * s[0] == (((tile_h_in) - (ks[0] - 1) ) + ((((tile_h_in) - (ks[0] - 1)))%s[0])))
+        # solver.Add(tile_w_out * s[1] == (((tile_w_in) - (ks[1] - 1) )) + ((((tile_w_in) - (ks[1] - 1)))%s[1]))
 
         if no_w_tiling:
             solver.Add(tile_n_out == out_ch)
@@ -306,7 +310,7 @@ class Tiler_Conv2D:
             if name in self.node.constant_names:
                 constants_tile_dimension += db * tile_n_out * self.node.constant_bits // 8
 
-        constraint_all = input_tile_dimension + output_tile_dimension + weight_tile_dimension + constants_tile_dimension
+        constraint_all = input_tile_dimension + output_tile_dimension*int(np.prod(self.node.strides)) + weight_tile_dimension + constants_tile_dimension
 
         solver.Add(constraint_all <= L1_memory)
 
@@ -341,6 +345,8 @@ class Tiler_Conv2D:
         # Add the objective.
         collector.AddObjective(obj_expr)
         solver.Solve(decision_builder, [objective, collector])
+
+
         if collector.SolutionCount() > 0:
             best_solution = collector.SolutionCount() - 1
             tile_n_in = collector.Value(best_solution, tile_n_in)

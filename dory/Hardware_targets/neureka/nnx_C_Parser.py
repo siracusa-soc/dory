@@ -22,6 +22,7 @@
 import json
 import os
 import shutil
+import numpy as np
 
 # DORY modules
 from dory.Parsers.Parser_HW_to_C import Parser_HW_to_C
@@ -146,7 +147,7 @@ class nnx_C_Parser(Parser_HW_to_C):
 
         tile_sizes = {
             'x': feature_len(effective_x_tile_size) * input_el_size,
-            'y': feature_len(effective_x_tile_size) * output_el_size,
+            'y': feature_len(output_tile_shape)*int(np.prod(node.strides)) * output_el_size,
             'W': weights_tile_ko_len * weights_tile_ki_size,
             'k': tile_ko * activation_el_size,
             'lambda': tile_ko * activation_el_size,
