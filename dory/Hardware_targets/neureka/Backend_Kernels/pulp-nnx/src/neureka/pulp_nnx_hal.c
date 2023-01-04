@@ -188,8 +188,8 @@ nnx_error_code nnx_conv_1x1_update_dims(nnx_cfg_t *cfg,
   const int rem_Ki = REMAINDER(k_in, NEUREKA_INPUT_CHANNEL_THROUGHPUT);
   const int rem_Ho = REMAINDER(h_out, NEUREKA_FILTER_SIZE);
   const int rem_Wo = REMAINDER(w_out, NEUREKA_FILTER_SIZE);
-  const int rem_Hi = rem_Ho;
-  const int rem_Wi = rem_Wo;
+  const int rem_Hi = rem_Ho- PADDING_BOTTOM(cfg->padding);
+  const int rem_Wi = rem_Wo- PADDING_RIGHT(cfg->padding);
   // const int rem_Hi = rem_Ho + 2;
   // const int rem_Wi = rem_Wo + 2;
 
@@ -310,7 +310,6 @@ nnx_error_code nnx_conv_3x3_update_dims(nnx_cfg_t *cfg,
     .d2 = k_in * NEUREKA_FILTER_BUFFER_SIZE * NEUREKA_FILTER_BUFFER_SIZE
   };
   cfg->input_stride = input_stride;
-  printf("Input stride d0=%d d1=%d d2=%d \n ",input_stride.d0, input_stride.d1, input_stride.d2);
 
   const nnx_stride_t output_stride = {
     .d0 = 32,
@@ -388,8 +387,6 @@ nnx_error_code nnx_conv_3x3_dw_update_dims(nnx_cfg_t *cfg,
   const int rem_Hi = rem_Ho + 2 - PADDING_BOTTOM(cfg->padding);
   const int rem_Wi = rem_Wo + 2 - PADDING_RIGHT(cfg->padding);
 
-  printf("%u %u %u %u\r\n", PADDING_TOP(cfg->padding), PADDING_BOTTOM(cfg->padding), PADDING_LEFT(cfg->padding),PADDING_RIGHT(cfg->padding));
-  printf("%u\r\n", cfg->padding);
     
   const nnx_subtile_t subtile = {
     .number = {

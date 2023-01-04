@@ -168,6 +168,13 @@ void ${func_name}(
 
   int y_tile_size_h = ${y_tile_size_h};
   int y_tile_size_w = ${y_tile_size_w};
+    %if stride > 1:
+  int y_tile_size_h_eff = ${y_tile_size_h * stride - ((x_tile_size_h + padding_top) % stride)};
+  int y_tile_size_w_eff = ${y_tile_size_w * stride - ((x_tile_size_w + padding_left) % stride)};
+  %else:
+     int y_tile_size_h_eff = ${y_tile_size_h};
+  int y_tile_size_w_eff = ${y_tile_size_w};
+  %endif
   int y_length_nof_byte = ${y_tile_size_nof_byte};
 
   int x_tile_size_h = ${x_tile_size_h};
@@ -272,8 +279,13 @@ void ${func_name}(
 
   nnx_feature_t nnx_output = {
     .data = db[i_db_y].y,
-    .height = ${y_tile_size_h},
-    .width = ${y_tile_size_w},
+    %if stride > 1:
+    .height = y_tile_size_h_eff,
+    .width = y_tile_size_w_eff,
+    %else:
+      .height = ${y_tile_size_h},
+      .width = ${y_tile_size_w},
+      %endif
     .depth = ${y_tile_size_nof},
     .bitwidth = featureBitwidth8Bit
   };
@@ -426,6 +438,15 @@ void ${func_name}(
     
     y_tile_size_h = (i_h + 1 == ${tile_dim_h}) ? ${y_tile_size_h_last} : ${y_tile_size_h};
     y_tile_size_w = (i_w + 1 == ${tile_dim_w}) ? ${y_tile_size_w_last} : ${y_tile_size_w};
+
+    %if stride > 1:
+    y_tile_size_h_eff = y_tile_size_h * ${stride} - ((x_tile_size_h + p_t + p_b) % ${stride});
+    y_tile_size_w_eff = y_tile_size_w * ${stride} - ((x_tile_size_w + p_l + p_r) % ${stride});
+    % else:
+	y_tile_size_h_eff = y_tile_size_h;
+    y_tile_size_w_eff = y_tile_size_w;
+    %endif
+       
     y_length_nof_byte = (i_nof + 1 == ${tile_dim_nof}) ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
     
     DMA_copy_y[DMA_Y_INDEX(i_tile)].ext = dory_get_tile_3d(l2_y, i_h, i_w, i_nof, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${int(nof*factor)}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
@@ -458,7 +479,11 @@ void ${func_name}(
     nnx_input.width = x_tile_size_w;
     nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}(&(nnx_task_to_offload->cfg), nnx_weights, nnx_input, nnx_output);
     nnx_pad_input(&((*nnx_task_to_offload).cfg), p_t, p_r, p_b, p_l, 0);
+    % if stride > 1:
+    nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}_update_dims(&(nnx_task_to_offload->cfg), y_tile_size_h_eff, y_tile_size_w_eff, W_tile_size_nof, W_tile_size_nif);
+    % else:
     nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}_update_dims(&(nnx_task_to_offload->cfg), y_tile_size_h, y_tile_size_w, W_tile_size_nof, W_tile_size_nif);
+    %endif
     
     nnx_task_to_offload->infeat_ptr = x_tile_ptr;
     nnx_task_to_offload->weights_ptr = w_tile_ptr;
@@ -679,31 +704,31 @@ void ${func_name}(
     if (is_load_w) i_db_w = !i_db_w;
     i_db_y = !i_db_y;
 
-    /* printf("Input: "); */
-    /* for (int i=0;i<30;i++){ */
-    /*   printf("%u, ", ((uint8_t*)x_tile_ptr)[i]); */
-    /* } */
-    /* printf("\r\n"); */
-    /* printf("Input @ linebreak: "); */
-    /* for (int i=0;i<30;i++){ */
-    /*   printf("%u, ", ((uint8_t*)x_tile_ptr)[((x_tile_size_w)*x_length_nif_byte) + i]); */
-    /* } */
-    /* printf("\r\n"); */
-    /* printf("Input @ linebreak 2: "); */
-    /* for (int i=0;i<30;i++){ */
-    /*   printf("%u, ", ((uint8_t*)x_tile_ptr)[((2*x_tile_size_w)*x_length_nif_byte) + i]); */
-    /* } */
-    /* printf("\r\n"); */
-    /* nnx_wait_empty(); */
-    /* printf("Output1: "); */
-    /* for (int i=0;i<30;i++){ */
-    /*   printf("%u, ", ((uint8_t*)y_tile_ptr)[i]); */
-    /* } */
-    /* printf("...\r\n"); */
-    /* for (int i=0;i<30;i++){ */
-    /*   printf("%u, ", ((uint8_t*)y_tile_ptr)[y_tile_size_w*y_tile_size_h-30 + i]); */
-    /* } */
-    /* printf("\r\n"); */
+    printf("Input: ");
+    for (int i=0;i<30;i++){
+      printf("%u, ", ((uint8_t*)x_tile_ptr)[i]);
+    }
+    printf("\r\n");
+    printf("Input @ linebreak: ");
+    for (int i=0;i<30;i++){
+      printf("%u, ", ((uint8_t*)x_tile_ptr)[((x_tile_size_w)*x_length_nif_byte) + i]);
+    }
+    printf("\r\n");
+    printf("Input @ linebreak 2: ");
+    for (int i=0;i<30;i++){
+      printf("%u, ", ((uint8_t*)x_tile_ptr)[((2*x_tile_size_w)*x_length_nif_byte) + i]);
+    }
+    printf("\r\n");
+    nnx_wait_empty();
+    printf("Output1: ");
+    for (int i=0;i<30;i++){
+      printf("%u, ", ((uint8_t*)y_tile_ptr)[i]);
+    }
+    printf("...\r\n");
+    for (int i=0;i<30;i++){
+      printf("%u, ", ((uint8_t*)y_tile_ptr)[y_tile_size_w*y_tile_size_h-30 + i]);
+    }
+    printf("\r\n");
   }
 
 
@@ -722,6 +747,18 @@ void ${func_name}(
     } else {
       nnx_wait_empty();
     }
+
+    %if stride > 1:
+    // SCHEREMO: Contract outputs w/ stride factor
+    uint8_t* y_tile_ptr = DMA_copy_y[DMA_Y_INDEX(i_store_y)].loc;
+    uint32_t blockwidth = DMA_copy_y[DMA_Y_INDEX(i_store_y)].length_1d_copy;
+    
+    for (int idx_h = 0; idx_h < y_tile_size_h; idx_h++){
+      for (int idx_w = 0; idx_w < y_tile_size_w; idx_w++){
+	memcpy(y_tile_ptr + (idx_h*y_tile_size_w + idx_w)*blockwidth, y_tile_ptr + (idx_h*y_tile_size_w_eff*${stride} + idx_w*${stride})*blockwidth, blockwidth);
+      }
+    }
+    %endif
 
     dory_dma_memcpy_async(&DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
   }
