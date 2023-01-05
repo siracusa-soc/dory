@@ -105,6 +105,7 @@ void ${func_name}(
   DMA_copy DMA_copy_k, DMA_copy_lambda;
 % endif
   DMA_copy DMA_copy_y[DMA_Y_CONTEXT_SIZE];
+  uint32_t wEffY[DMA_Y_CONTEXT_SIZE];
   int dma_copy_y_job_ids[DMA_Y_CONTEXT_SIZE];
 
   //////////////////
@@ -446,6 +447,8 @@ void ${func_name}(
 	y_tile_size_h_eff = y_tile_size_h;
     y_tile_size_w_eff = y_tile_size_w;
     %endif
+
+       wEffY[DMA_Y_INDEX(i_tile)] = y_tile_size_w_eff;
        
     y_length_nof_byte = (i_nof + 1 == ${tile_dim_nof}) ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
     
@@ -540,6 +543,22 @@ void ${func_name}(
     const int is_store = nnx_job_id() > dma_copy_y_job_ids[DMA_Y_INDEX(i_store_y)];
 
     if (is_store) {
+      %if stride > 1:
+      // SCHEREMO: Contract outputs w/ stride factor
+      uint8_t* y_tile_ptr = DMA_copy_y[DMA_Y_INDEX(i_store_y)].loc;
+      uint32_t blockwidth = DMA_copy_y[DMA_Y_INDEX(i_store_y)].length_1d_copy;
+
+      uint32_t cp_y_tile_size_h = DMA_copy_y[DMA_Y_INDEX(i_store_y)].number_of_2d_copies;
+      uint32_t cp_y_tile_size_w = DMA_copy_y[DMA_Y_INDEX(i_store_y)].number_of_1d_copies;
+      uint32_t cp_y_tile_size_w_eff = wEffY[DMA_Y_INDEX(i_store_y)];
+      
+      for (int idx_h = 0; idx_h < cp_y_tile_size_h; idx_h++){
+	for (int idx_w = 0; idx_w < cp_y_tile_size_w; idx_w++){
+	  memcpy(y_tile_ptr + (idx_h*cp_y_tile_size_w + idx_w)*blockwidth, y_tile_ptr + (idx_h*cp_y_tile_size_w_eff*${stride} + idx_w*${stride})*blockwidth, blockwidth);
+	}
+      }
+      %endif
+      
       dory_dma_memcpy_async(&DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
     }
 
@@ -704,31 +723,31 @@ void ${func_name}(
     if (is_load_w) i_db_w = !i_db_w;
     i_db_y = !i_db_y;
 
-    printf("Input: ");
-    for (int i=0;i<30;i++){
-      printf("%u, ", ((uint8_t*)x_tile_ptr)[i]);
-    }
-    printf("\r\n");
-    printf("Input @ linebreak: ");
-    for (int i=0;i<30;i++){
-      printf("%u, ", ((uint8_t*)x_tile_ptr)[((x_tile_size_w)*x_length_nif_byte) + i]);
-    }
-    printf("\r\n");
-    printf("Input @ linebreak 2: ");
-    for (int i=0;i<30;i++){
-      printf("%u, ", ((uint8_t*)x_tile_ptr)[((2*x_tile_size_w)*x_length_nif_byte) + i]);
-    }
-    printf("\r\n");
-    nnx_wait_empty();
-    printf("Output1: ");
-    for (int i=0;i<30;i++){
-      printf("%u, ", ((uint8_t*)y_tile_ptr)[i]);
-    }
-    printf("...\r\n");
-    for (int i=0;i<30;i++){
-      printf("%u, ", ((uint8_t*)y_tile_ptr)[y_tile_size_w*y_tile_size_h-30 + i]);
-    }
-    printf("\r\n");
+    /* printf("Input: "); */
+    /* for (int i=0;i<30;i++){ */
+    /*   printf("%u, ", ((uint8_t*)x_tile_ptr)[i]); */
+    /* } */
+    /* printf("\r\n"); */
+    /* printf("Input @ linebreak: "); */
+    /* for (int i=0;i<30;i++){ */
+    /*   printf("%u, ", ((uint8_t*)x_tile_ptr)[((x_tile_size_w)*x_length_nif_byte) + i]); */
+    /* } */
+    /* printf("\r\n"); */
+    /* printf("Input @ linebreak 2: "); */
+    /* for (int i=0;i<30;i++){ */
+    /*   printf("%u, ", ((uint8_t*)x_tile_ptr)[((2*x_tile_size_w)*x_length_nif_byte) + i]); */
+    /* } */
+    /* printf("\r\n"); */
+    /* nnx_wait_empty(); */
+    /* printf("Output1: "); */
+    /* for (int i=0;i<30;i++){ */
+    /*   printf("%u, ", ((uint8_t*)y_tile_ptr)[i]); */
+    /* } */
+    /* printf("...\r\n"); */
+    /* for (int i=0;i<30;i++){ */
+    /*   printf("%u, ", ((uint8_t*)y_tile_ptr)[y_tile_size_w*y_tile_size_h-30 + i]); */
+    /* } */
+    /* printf("\r\n"); */
   }
 
 
@@ -748,18 +767,21 @@ void ${func_name}(
       nnx_wait_empty();
     }
 
-    %if stride > 1:
-    // SCHEREMO: Contract outputs w/ stride factor
-    uint8_t* y_tile_ptr = DMA_copy_y[DMA_Y_INDEX(i_store_y)].loc;
-    uint32_t blockwidth = DMA_copy_y[DMA_Y_INDEX(i_store_y)].length_1d_copy;
-    
-    for (int idx_h = 0; idx_h < y_tile_size_h; idx_h++){
-      for (int idx_w = 0; idx_w < y_tile_size_w; idx_w++){
-	memcpy(y_tile_ptr + (idx_h*y_tile_size_w + idx_w)*blockwidth, y_tile_ptr + (idx_h*y_tile_size_w_eff*${stride} + idx_w*${stride})*blockwidth, blockwidth);
-      }
-    }
-    %endif
+      %if stride > 1:
+      // SCHEREMO: Contract outputs w/ stride factor
+      uint8_t* y_tile_ptr = DMA_copy_y[DMA_Y_INDEX(i_store_y)].loc;
+      uint32_t blockwidth = DMA_copy_y[DMA_Y_INDEX(i_store_y)].length_1d_copy;
 
+      uint32_t cp_y_tile_size_h = DMA_copy_y[DMA_Y_INDEX(i_store_y)].number_of_2d_copies;
+      uint32_t cp_y_tile_size_w = DMA_copy_y[DMA_Y_INDEX(i_store_y)].number_of_1d_copies;
+      uint32_t cp_y_tile_size_w_eff = wEffY[DMA_Y_INDEX(i_store_y)];
+      
+      for (int idx_h = 0; idx_h < cp_y_tile_size_h; idx_h++){
+	for (int idx_w = 0; idx_w < cp_y_tile_size_w; idx_w++){
+	  memcpy(y_tile_ptr + (idx_h*cp_y_tile_size_w + idx_w)*blockwidth, y_tile_ptr + (idx_h*cp_y_tile_size_w_eff*${stride} + idx_w*${stride})*blockwidth, blockwidth);
+	}
+      }
+      %endif
     dory_dma_memcpy_async(&DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
   }
 
