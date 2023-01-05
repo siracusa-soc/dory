@@ -441,8 +441,8 @@ void ${func_name}(
     y_tile_size_w = (i_w + 1 == ${tile_dim_w}) ? ${y_tile_size_w_last} : ${y_tile_size_w};
 
     %if stride > 1:
-    y_tile_size_h_eff = y_tile_size_h * ${stride} - ((x_tile_size_h + p_t + p_b) % ${stride});
-    y_tile_size_w_eff = y_tile_size_w * ${stride} - ((x_tile_size_w + p_l + p_r) % ${stride});
+    y_tile_size_h_eff = y_tile_size_h * ${stride} - ((x_tile_size_h + p_b + (${tile_dim_h} == 1)*p_t) % ${stride});
+    y_tile_size_w_eff = y_tile_size_w * ${stride} - ((x_tile_size_w + p_r + (${tile_dim_w} == 1)*p_l) % ${stride});
     % else:
 	y_tile_size_h_eff = y_tile_size_h;
     y_tile_size_w_eff = y_tile_size_w;
