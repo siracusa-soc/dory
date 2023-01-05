@@ -67,6 +67,38 @@ static int increment_i_dma_y(int i) {
   return (i + 1) != DMA_Y_CONTEXT_SIZE ? i + 1 : 0; 
 }
 
+static void contract_strided_output(int i_store_y, DMA_copy* DMA_copy_y, uint32_t* wEffY, uint32_t dma_channel){
+
+  uint8_t* y_tile_ptr = DMA_copy_y[DMA_Y_INDEX(i_store_y)].loc;
+  uint32_t blockwidth = DMA_copy_y[DMA_Y_INDEX(i_store_y)].length_1d_copy;
+
+  uint32_t cp_y_tile_size_h = DMA_copy_y[DMA_Y_INDEX(i_store_y)].number_of_2d_copies;
+  uint32_t cp_y_tile_size_w = DMA_copy_y[DMA_Y_INDEX(i_store_y)].number_of_1d_copies;
+  uint32_t cp_y_tile_size_w_eff = wEffY[DMA_Y_INDEX(i_store_y)];
+  
+  DMA_copy reshuffle_copy;
+  reshuffle_copy.hwc_to_chw = 0;
+  reshuffle_copy.dir = 1;
+  reshuffle_copy.tid = dma_channel;
+  
+  reshuffle_copy.loc = y_tile_ptr;
+  reshuffle_copy.ext = y_tile_ptr;
+  reshuffle_copy.length_1d_copy = blockwidth;
+  reshuffle_copy.number_of_2d_copies = cp_y_tile_size_h;
+  reshuffle_copy.number_of_1d_copies = cp_y_tile_size_w;
+  reshuffle_copy.stride_2d = ${stride}*wEffY[DMA_Y_INDEX(i_store_y)]*blockwidth;
+  reshuffle_copy.stride_1d = ${stride}*blockwidth;
+  dory_dma_memcpy_async(&reshuffle_copy);
+  dory_dma_barrier(&reshuffle_copy);
+  
+  /* for (int idx_h = 0; idx_h < cp_y_tile_size_h; idx_h++){ */
+  /*   for (int idx_w = 0; idx_w < cp_y_tile_size_w; idx_w++){ */
+  /*     memcpy(y_tile_ptr + (idx_h*cp_y_tile_size_w + idx_w)*blockwidth, y_tile_ptr + (idx_h*cp_y_tile_size_w_eff*${stride} + idx_w*${stride})*blockwidth, blockwidth); */
+  /*   } */
+  /* } */
+
+}
+
 void ${func_name}(
   void *args
 ) {
@@ -448,8 +480,10 @@ void ${func_name}(
     y_tile_size_w_eff = y_tile_size_w;
     %endif
 
+       %if stride > 1:
        wEffY[DMA_Y_INDEX(i_tile)] = y_tile_size_w_eff;
-       
+       %endif
+	  
     y_length_nof_byte = (i_nof + 1 == ${tile_dim_nof}) ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
     
     DMA_copy_y[DMA_Y_INDEX(i_tile)].ext = dory_get_tile_3d(l2_y, i_h, i_w, i_nof, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${int(nof*factor)}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
@@ -545,18 +579,8 @@ void ${func_name}(
     if (is_store) {
       %if stride > 1:
       // SCHEREMO: Contract outputs w/ stride factor
-      uint8_t* y_tile_ptr = DMA_copy_y[DMA_Y_INDEX(i_store_y)].loc;
-      uint32_t blockwidth = DMA_copy_y[DMA_Y_INDEX(i_store_y)].length_1d_copy;
-
-      uint32_t cp_y_tile_size_h = DMA_copy_y[DMA_Y_INDEX(i_store_y)].number_of_2d_copies;
-      uint32_t cp_y_tile_size_w = DMA_copy_y[DMA_Y_INDEX(i_store_y)].number_of_1d_copies;
-      uint32_t cp_y_tile_size_w_eff = wEffY[DMA_Y_INDEX(i_store_y)];
-      
-      for (int idx_h = 0; idx_h < cp_y_tile_size_h; idx_h++){
-	for (int idx_w = 0; idx_w < cp_y_tile_size_w; idx_w++){
-	  memcpy(y_tile_ptr + (idx_h*cp_y_tile_size_w + idx_w)*blockwidth, y_tile_ptr + (idx_h*cp_y_tile_size_w_eff*${stride} + idx_w*${stride})*blockwidth, blockwidth);
-	}
-      }
+      nnx_wait_on_id(dma_copy_y_job_ids[DMA_Y_INDEX(i_store_y)]);
+      contract_strided_output(i_store_y, DMA_copy_y, wEffY, dory_dma_channel);
       %endif
       
       dory_dma_memcpy_async(&DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
@@ -768,19 +792,7 @@ void ${func_name}(
     }
 
       %if stride > 1:
-      // SCHEREMO: Contract outputs w/ stride factor
-      uint8_t* y_tile_ptr = DMA_copy_y[DMA_Y_INDEX(i_store_y)].loc;
-      uint32_t blockwidth = DMA_copy_y[DMA_Y_INDEX(i_store_y)].length_1d_copy;
-
-      uint32_t cp_y_tile_size_h = DMA_copy_y[DMA_Y_INDEX(i_store_y)].number_of_2d_copies;
-      uint32_t cp_y_tile_size_w = DMA_copy_y[DMA_Y_INDEX(i_store_y)].number_of_1d_copies;
-      uint32_t cp_y_tile_size_w_eff = wEffY[DMA_Y_INDEX(i_store_y)];
-      
-      for (int idx_h = 0; idx_h < cp_y_tile_size_h; idx_h++){
-	for (int idx_w = 0; idx_w < cp_y_tile_size_w; idx_w++){
-	  memcpy(y_tile_ptr + (idx_h*cp_y_tile_size_w + idx_w)*blockwidth, y_tile_ptr + (idx_h*cp_y_tile_size_w_eff*${stride} + idx_w*${stride})*blockwidth, blockwidth);
-	}
-      }
+    contract_strided_output(i_store_y, DMA_copy_y, wEffY, dory_dma_channel);
       %endif
     dory_dma_memcpy_async(&DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
   }
