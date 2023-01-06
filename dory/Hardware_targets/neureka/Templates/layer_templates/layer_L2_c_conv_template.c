@@ -524,7 +524,7 @@ void ${func_name}(
     nnx_input.width = x_tile_size_w;
     nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}(&(nnx_task_to_offload->cfg), nnx_weights, nnx_input, nnx_output);
     nnx_pad_input(&((*nnx_task_to_offload).cfg), p_t, p_r, p_b, p_l, 0);
-    nnx_task_to_offload->cfg.conf0 = nnx_task_to_offload->cfg.conf0 | (${FLAG_RELU}<<23);
+    nnx_task_to_offload->cfg.conf0 = nnx_task_to_offload->cfg.conf0 | ((uint32_t)(${RELU}<<23));
     % if stride > 1:
     nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}_update_dims(&(nnx_task_to_offload->cfg), y_tile_size_h_eff, y_tile_size_w_eff, W_tile_size_nof, W_tile_size_nif);
     % else:

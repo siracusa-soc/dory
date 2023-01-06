@@ -144,7 +144,8 @@ class TemplateWriter2D_L2(TemplateWriter):
         self.FLAG_BATCHNORM = 1 if 'k' in node.constant_names else 0
         self.has_bias = int(len([1 for name in node.constant_names if "bias" in name]) > 0)
         self.FLAG_RELU = 1 if 'outshift' in node.constant_names else 0
-        self.use_relu = True if 'Relu' in node.name else False
+        self.use_relu = 1 if node.min==0 else 0
+        self.RELU = 0 if node.min == 0 else 1
         self.type = "char" if node.input_activation_type in ["int", "uint"] else "float"
         self.conv_overlap1 = conv_overlap1
         self.conv_overlap2 = conv_overlap2

@@ -133,7 +133,15 @@ class onnx_manager_Siracusa(Parser_DORY_to_HW):
     @staticmethod
     def is_offloadable(node: Layer_node) -> bool:
         #SCHEREMO: Check if it's an 8-Bit x 8-Bit or lower convolution
-        if node.op_type == "BNReluConv" and node.weight_bits == 8 and node.input_activation_bits == 8 and node.output_activation_type == 'uint' and node.input_activation_type == 'uint':
+        try:
+            memEstimate = (np.prod(node.input_dimensions)*node.input_channels + np.prod(node.output_dimensions)*node.output_channels + np.prod(node.kernel_shape)*node.input_channels*node.output_channels)
+
+            if memEstimate > 1500000:
+                return False
+        except:
+            return False
+
+        if node.op_type == "BNReluConv" and node.weight_bits == 8 and node.input_activation_bits == 8 and node.input_activation_type == 'uint':
             #SCHEREMO: Check if it's a pointwise convolution:
             if node.group == 1 and node.kernel_shape == [1,1]:
                 print("1x1 dense - Offloading to NEUREKA...")

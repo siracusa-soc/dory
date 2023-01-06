@@ -222,10 +222,9 @@ class Tiler_Conv2D:
         no_w_tiling = self.node.HW_description["memory"]["wmem"] and self.conf['use_wmem']
 
         # SCHEREMO: Workaround. currently weights are moved over L2
-        weight_memory = self.node.tiling_dimensions["L2"]["weight_memory"]
-
-        buffer_total = weight_memory + self.node.tiling_dimensions["L2"]["constants_memory"] + self.node.tiling_dimensions["L2"]["bias_memory"] + in_mem + out_mem
+        #weight_memory = self.node.tiling_dimensions["L2"]["weight_memory"]
         weight_memory = 0 if no_w_tiling else self.node.tiling_dimensions["L2"]["weight_memory"]
+        buffer_total = weight_memory + self.node.tiling_dimensions["L2"]["constants_memory"] + self.node.tiling_dimensions["L2"]["bias_memory"] + in_mem + out_mem
 
         print(buffer_total)
 
