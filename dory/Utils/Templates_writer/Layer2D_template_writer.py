@@ -174,6 +174,7 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
             tk['first_layer'] = 1
     else:
         tk['first_layer'] = 0
+    tk['node'] = node
     tk['sdk'] = node.HW_description["software development kit"]["name"]
     tk['number_of_clusters'] = node.HW_description["number_of_clusters"] if "number_of_clusters" in node.HW_description.keys() else 1
     tk['optional_type'] = layer_type
@@ -296,6 +297,7 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     tk['fs1'] = fs1
     tk['fs2'] = fs2
     tk['W_data_size_byte'] = ds_W
+    tk['b_data_size_byte'] = ds_bias
     tk['W_tile_size_nof'] = tile_n_out
     if tk['has_bias'] == 1:
         tk['b_size_byte'] = int(math.ceil(n_out * ds_bias / 8.0))
@@ -437,6 +439,9 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     # only used for avg pool layers
     tk['out_add'] = node.outadd["value"] if 'outadd' in node.constant_names else 0
     tk['out_mul'] = node.outmul["value"] if 'outmul' in node.constant_names else 1
+
+    tk['conv1d'] = node.conv1d
+    tk['dilations'] = node.dilations
 
     if "Addition" not in node.name and "Pool" not in node.name:
         tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_conv_template.c"))

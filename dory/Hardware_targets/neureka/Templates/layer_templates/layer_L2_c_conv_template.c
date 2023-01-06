@@ -63,18 +63,22 @@ void static print_dma(DMA_copy* dma){
 #define DMA_Y_MASK 0x3
 #define DMA_Y_INDEX(n) (n & DMA_Y_MASK)
 
+#define DMA_RESHUFFLE 1
+
 static int increment_i_dma_y(int i) {
   return (i + 1) != DMA_Y_CONTEXT_SIZE ? i + 1 : 0; 
 }
 
 static void contract_strided_output(int i_store_y, DMA_copy* DMA_copy_y, uint32_t* wEffY, uint32_t dma_channel){
-
+  
   uint8_t* y_tile_ptr = DMA_copy_y[DMA_Y_INDEX(i_store_y)].loc;
   uint32_t blockwidth = DMA_copy_y[DMA_Y_INDEX(i_store_y)].length_1d_copy;
 
   uint32_t cp_y_tile_size_h = DMA_copy_y[DMA_Y_INDEX(i_store_y)].number_of_2d_copies;
   uint32_t cp_y_tile_size_w = DMA_copy_y[DMA_Y_INDEX(i_store_y)].number_of_1d_copies;
   uint32_t cp_y_tile_size_w_eff = wEffY[DMA_Y_INDEX(i_store_y)];
+
+#if DMA_RESHUFFLE
   
   DMA_copy reshuffle_copy;
   reshuffle_copy.hwc_to_chw = 0;
@@ -90,13 +94,17 @@ static void contract_strided_output(int i_store_y, DMA_copy* DMA_copy_y, uint32_
   reshuffle_copy.stride_1d = ${stride}*blockwidth;
   dory_dma_memcpy_async(&reshuffle_copy);
   dory_dma_barrier(&reshuffle_copy);
-  
-  /* for (int idx_h = 0; idx_h < cp_y_tile_size_h; idx_h++){ */
-  /*   for (int idx_w = 0; idx_w < cp_y_tile_size_w; idx_w++){ */
-  /*     memcpy(y_tile_ptr + (idx_h*cp_y_tile_size_w + idx_w)*blockwidth, y_tile_ptr + (idx_h*cp_y_tile_size_w_eff*${stride} + idx_w*${stride})*blockwidth, blockwidth); */
-  /*   } */
-  /* } */
 
+ #else
+  
+  for (int idx_h = 0; idx_h < cp_y_tile_size_h; idx_h++){
+    for (int idx_w = 0; idx_w < cp_y_tile_size_w; idx_w++){
+      memcpy(y_tile_ptr + (idx_h*cp_y_tile_size_w + idx_w)*blockwidth, y_tile_ptr + (idx_h*cp_y_tile_size_w_eff*${stride} + idx_w*${stride})*blockwidth, blockwidth);
+    }
+  }
+
+#endif
+  
 }
 
 void ${func_name}(
@@ -516,6 +524,7 @@ void ${func_name}(
     nnx_input.width = x_tile_size_w;
     nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}(&(nnx_task_to_offload->cfg), nnx_weights, nnx_input, nnx_output);
     nnx_pad_input(&((*nnx_task_to_offload).cfg), p_t, p_r, p_b, p_l, 0);
+    nnx_task_to_offload->cfg.conf0 = nnx_task_to_offload->cfg.conf0 | (${FLAG_RELU}<<23);
     % if stride > 1:
     nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}_update_dims(&(nnx_task_to_offload->cfg), y_tile_size_h_eff, y_tile_size_w_eff, W_tile_size_nof, W_tile_size_nif);
     % else:

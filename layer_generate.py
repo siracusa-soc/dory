@@ -56,7 +56,7 @@ def create_dory_node(params):
     node.branch_change = 0
 
     # TODO add Relu as optional variable
-    assert params['use_relu'], "Layer without ReLU not implemented."
+    #assert params['use_relu'], "Layer without ReLU not implemented."
     name = 'BNRelu' if params['batchnorm'] else 'Relu'  # TODO: check how to name it if there is no Relu with Alessio
     node.name = name
     node.op_type = name
@@ -218,10 +218,6 @@ def create_layer(i_layer, layer_node, dory_node, network_dir, hardware_target, i
     x_pad = torch.nn.functional.pad(x, (layer_node.pads[1],layer_node.pads[3],layer_node.pads[0],layer_node.pads[2]))
     y = F.conv2d(input=x_pad, weight=w, stride=layer_node.strides, padding=0, groups=layer_node.group)
 
-    print(x_pad)
-    print(w)
-    print(y)
-
     if layer_node.output_activation_bits == 64:
         y_type = torch.int64
     elif layer_node.output_activation_bits == 32:
@@ -265,7 +261,7 @@ def create_graph(params, network_dir, hardware_target):
     layer_node = create_layer_node(params)
     dory_node = create_dory_node(params)
     with torch.no_grad():
-        create_layer(0, layer_node, dory_node, network_dir, hardware_target)
+        create_layer(0, layer_node, dory_node, network_dir, hardware_target, use_relu=params['use_relu'])
 
     return [layer_node, dory_node]
 
@@ -284,21 +280,18 @@ def layer_generate(
 
     torch.manual_seed(0)
     DORY_Graph = create_graph(json_configuration_file, network_dir, hardware_target)
-
     # Including and running the transformation from DORY IR to DORY HW IR
     onnx_manager = importlib.import_module(f'dory.Hardware_targets.{hardware_target}.HW_Parser')
     DORY_to_DORY_HW = onnx_manager.onnx_manager
     DORY_Graph = DORY_to_DORY_HW(DORY_Graph, json_configuration_file, json_configuration_file_root).full_graph_parsing()
     # Deployment of the model on the target architecture
     onnx_manager = importlib.import_module(f'dory.Hardware_targets.{hardware_target}.C_Parser')
-    # import IPython; IPython.embed()
     DORY_HW_to_C = onnx_manager.C_Parser
     _DORY_Graph = DORY_HW_to_C(DORY_Graph, json_configuration_file, json_configuration_file_root,
                               verbose_level, perf_layer, optional, app_dir).full_graph_parsing()
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('hardware_target', type=str, choices=["GAP8", "nnx.ne16", "neureka.neureka", "Occamy", "Diana"],
+    parser.add_argument('hardware_target', type=str, choices=["Siracusa.Siracusa_gvsoc", "nnx.ne16", "neureka.neureka", "Occamy", "Diana"],
                         help='Hardware platform for which the code is optimized')
     parser.add_argument('--config_file', default='config_files/config_single_layer.json', type=str,
                         help='Path to the JSON file that specifies the ONNX file of the network and other information. Default: config_files/config_single_layer.json')
