@@ -41,7 +41,7 @@ def print_template_network(
         tk['verbose'] = False
     weights_number = 0
     for nodes in graph:
-        if 'FullyConnected' in nodes.name or 'Conv' in nodes.name:
+        if (not (hasattr(nodes, "offloadable") and nodes.offloadable and hasattr(nodes, "use_wmem") and nodes.use_wmem)) and ('FullyConnected' in nodes.name or 'Conv' in nodes.name):
             weights_number += 1
     tk['weights_number'] = weights_number
     tk['verbose_level'] = verbose_level
@@ -60,7 +60,7 @@ def print_template_network(
     list_name = []
     for i, node in enumerate(graph):
         MACs += node.MACs
-        if "Conv" in node.name or "FullyConnected" in node.name:
+        if (not (hasattr(node, "offloadable") and node.offloadable and hasattr(node, "use_wmem") and node.use_wmem)) and ("Conv" in node.name or "FullyConnected" in node.name):
             file_list_w.append(node.name+"_weights.hex")
         list_h.append(node.name+".h")
         list_name.append(node.name)

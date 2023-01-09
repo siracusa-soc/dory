@@ -18,14 +18,16 @@
 # Libraries
 import json
 import os
+from collections import OrderedDict
 import numpy as np
+from mako.template import Template
 
 # DORY modules
 from dory.Hardware_targets.neureka.nnx_C_Parser import nnx_C_Parser
 from dory.Parsers.Parser_HW_to_C import Parser_HW_to_C
 import dory.Utils.Templates_writer.Layer2D_template_writer as Layer2D_writer
 from dory.Hardware_targets.neureka.neureka.Neureka import Neureka
-
+import dory.Utils.Templates_writer.writer_utils as utils
 
 class C_Parser_Siracusa(Parser_HW_to_C):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
@@ -45,6 +47,10 @@ class C_Parser_Siracusa(Parser_HW_to_C):
             print("C_Parser_Siracusa: Key 'double_buffering' not found in HW_description.json - setting to 2")
             db = 2
         self.double_buffering = db
+
+        self.weights_names = []
+        self.weights_vectors = []
+        self.weights_dimensions = []
 
     def get_file_path(self):
         raise NotImplementedError("To be implemented by child class!")
@@ -160,9 +166,9 @@ class C_Parser_Siracusa(Parser_HW_to_C):
                 nnx_C_Parser.map_layer_to_C_file(node, self.config_file, self.acc, os.path.join(self.config_file['nnx_dir'], "Templates/layer_templates"), out_dir, self.HW_description)
 
     def create_hex_weight(self, node):
-        # if not hasattr(node, "offloadable") or not node.offloadable:
-        super().create_hex_weight(node)
-        if hasattr(node, "offloadable") and node.offloadable and hasattr(node, "use_wmem") and node.use_wmem:
+        if (node.HW_description['memory']['levels'] > 2) and (not hasattr(node, "offloadable") or not node.offloadable):
+            super().create_hex_weight(node)
+        elif hasattr(node, "offloadable") and node.offloadable:
             constants = [0, 0, 0, 0]
             for name in node.constant_names:
                 if "weight" in name:
@@ -175,7 +181,7 @@ class C_Parser_Siracusa(Parser_HW_to_C):
                     constants[3] = name
 
             weights = bytearray()
-            for const in constants:
+            for const in constants[:1]:
                 if const != 0:
                     weights += getattr(node, const)['value'].tobytes()
 
@@ -184,15 +190,29 @@ class C_Parser_Siracusa(Parser_HW_to_C):
 
             weightstr = ''
             weightstr += f"#include \"{node.name}_weights.h\"\r\n"
+            weightstr += f"#include \"pmsis.h\"\r\n"
             weightstr += '__attribute__ ((section(".weightmem_mram"))) '
             weightstr += f"unsigned char {node.name}_weights[{len(weights)}] = "
             weightstr += "{"
             weightstr += ", ".join("0x"+format(x, '02x') for x in weights)
             weightstr += "};\r\n"
 
+            for const in constants[1:]:
+                if const != 0:
+                    val = bytes(getattr(node,const)['value'])
+                    weightstr += 'PI_L2 '
+                    weightstr += f"unsigned char {node.name}_{const}[{len(val)}] = "
+                    weightstr += "{"
+                    weightstr += ", ".join("0x"+format(x, '02x') for x in val)
+                    weightstr += "};\r\n"
+
             weightstr_h = f"#ifndef __INCLUDE_GUARD_{node.name}\r\n"
             weightstr_h += f"#define __INCLUDE_GUARD_{node.name}\r\n"
-            weightstr_h += f"extern unsigned char {node.name}_weights[{len(weights)}];"
+            weightstr_h += f"extern unsigned char {node.name}_weights[{len(weights)}];\r\n"
+            for const in constants[1:]:
+                if const != 0:
+                    val = bytes(getattr(node,const)['value'])
+                    weightstr_h += f"extern unsigned char {node.name}_{const}[{len(val)}];\r\n"
             weightstr_h += f"\r\n#endif"
 
             filepath = os.path.join(self.app_directory, 'src', node.name + "_weights.c")
@@ -202,3 +222,80 @@ class C_Parser_Siracusa(Parser_HW_to_C):
             filepath = os.path.join(self.app_directory, 'inc', node.name + "_weights.h")
             with open(filepath, 'w') as file:
                 file.write(weightstr_h)
+        else:
+            print("\nGenerating .h weight files.")
+
+            constants = [0, 0, 0, 0]
+            for name in node.constant_names:
+                if "weight" in name:
+                    constants[0] = name
+                elif "bias" in name:
+                    constants[1] = name
+                elif "k" == name:
+                    constants[2] = name
+                elif "l" == name:
+                    constants[3] = name
+            weights = np.asarray([])
+            for i in np.arange(4):
+                if constants[i]!= 0:
+                    weights = np.concatenate((weights,node.__dict__[constants[i]]["value"]))
+            while len(weights) % 4 != 0:
+                weights = np.concatenate((weights, np.asarray([0])))
+            ww, ww_dim = utils.print_test_vector(weights, 'char'), weights.shape[0]
+            self.weights_names.append(node.name)
+            self.weights_vectors.append(ww)
+            self.weights_dimensions.append(ww_dim)
+            tk = OrderedDict([])
+            tk['weights_names'] = self.weights_names
+            tk['weights_vectors'] = self.weights_vectors
+            tk['weights_dimensions'] = self.weights_dimensions
+            tk['DORY_HW_graph'] = self.HWgraph
+            tk['sdk'] = node.HW_description["software development kit"]["name"]
+            root = os.path.dirname(__file__)
+            tmpl = Template(filename=os.path.join(root, "Templates/weights_h_template.h"))
+            s = tmpl.render(**tk)
+            save_string = os.path.join(self.inc_dir, 'weights.h')
+            with open(save_string, "w") as f:
+                f.write(s)
+            tmpl = Template(filename=os.path.join(root, "Templates/weights_definition_h_template.h"))
+            s = tmpl.render(**tk)
+            save_string = os.path.join(self.inc_dir, 'weights_definition.h')
+            with open(save_string, "w") as f:
+                f.write(s)
+
+    def create_hex_input(self):
+        if (self.HW_description['memory']['levels'] > 2):
+            return super().create_hex_input()
+
+        print("\nGenerating .h input file.")
+        x_in_l = []
+        for in_idx in range(self.n_inputs):
+            infile = 'input.txt' if self.n_inputs == 1 else f'input_{in_idx}.txt'
+            try:
+                x_in = np.loadtxt(os.path.join(self.network_directory, infile), delimiter=',', dtype=np.uint8, usecols=[0])
+            except FileNotFoundError:
+                print(f"========= WARNING ==========\nInput file {os.path.join(self.network_directory, 'input.txt')} not found; generating random inputs!")
+                x_in = np.random.randint(low=0, high=2*8,
+                                         size=self.group * self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
+                                         dtype=np.uint8)
+            x_in_l.append(x_in.flatten())
+
+        x_in = np.concatenate(x_in_l)
+        in_node = self.HWgraph[0]
+        in_bits = in_node.input_activation_bits
+        if in_bits != 8:
+            x_in = HW_node._compress(x_in, in_bits)
+
+
+        temp = x_in
+        input_values = utils.print_test_vector(temp.flatten(), 'char')
+        tk = OrderedDict([])
+        tk['input_values'] = input_values
+        tk['dimension'] = len(x_in)
+        tk['sdk'] = self.HW_description["software development kit"]["name"]
+        root = os.path.dirname(__file__)
+        tmpl = Template(filename=os.path.join(root, "Templates/input_h_template.h"))
+        s = tmpl.render(**tk)
+        save_string = os.path.join(self.inc_dir, 'input.h')
+        with open(save_string, "w") as f:
+            f.write(s)

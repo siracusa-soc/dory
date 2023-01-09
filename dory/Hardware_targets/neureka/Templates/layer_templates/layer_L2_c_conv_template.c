@@ -127,8 +127,13 @@ void ${func_name}(
   const unsigned int l2_y = layer_args->L2_output;
   const unsigned int l2_W = layer_args->L2_weights;
 % if FLAG_BATCHNORM == 1:
+  %if use_wmem:
+  const unsigned int l2_scale = ${func_name}_k;
+  const unsigned int l2_bias  = ${func_name}_l;
+  %else:
   const unsigned int l2_scale = l2_W + ${l2_k_offset - l2_W_offset};
   const unsigned int l2_bias  = l2_W + ${l2_lambda_offset - l2_W_offset};
+  %endif
 % endif
   const unsigned int l1_buffer = layer_args->L1_buffer;
   const unsigned int out_shift = layer_args->out_shift;
@@ -390,15 +395,13 @@ void ${func_name}(
 //  \______/  \______/ |__/  \__/|__/      |______/ \______/  \______/ |__/  |__/|________/
 
     const int x_tile_ptr     = db[i_db_x].x;
-    /* % if use_wmem: */
-    /* int w_tile_ptr; */
-    /* % else: */
+
     % if not use_wmem:
     const int w_tile_ptr     = db[i_db_w].w;
     % else:
       const int w_tile_ptr     = ${func_name}_weights;
     % endif
-    /* % endif */
+
 % if FLAG_BATCHNORM == 1:
     const int scale_tile_ptr = db[i_db_w].scale;
     const int bias_tile_ptr  = db[i_db_w].bias;
@@ -525,6 +528,9 @@ void ${func_name}(
     nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}(&(nnx_task_to_offload->cfg), nnx_weights, nnx_input, nnx_output);
     nnx_pad_input(&((*nnx_task_to_offload).cfg), p_t, p_r, p_b, p_l, 0);
     nnx_task_to_offload->cfg.conf0 = nnx_task_to_offload->cfg.conf0 | ((uint32_t)(${RELU}<<23));
+    % if signed:
+    nnx_task_to_offload->cfg.conf0 = nnx_task_to_offload->cfg.conf0 | ((uint32_t)(1<<26));
+    % endif
     % if stride > 1:
     nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}_update_dims(&(nnx_task_to_offload->cfg), y_tile_size_h_eff, y_tile_size_w_eff, W_tile_size_nof, W_tile_size_nif);
     % else:
@@ -755,7 +761,7 @@ void ${func_name}(
     if (is_load_x) i_db_x = !i_db_x;
     if (is_load_w) i_db_w = !i_db_w;
     i_db_y = !i_db_y;
-
+    
     /* printf("Input: "); */
     /* for (int i=0;i<30;i++){ */
     /*   printf("%u, ", ((uint8_t*)x_tile_ptr)[i]); */

@@ -31,6 +31,7 @@ class Tiler:
         self.prev_node = prev_node
         self.conf = conf
         self.acc = acc
+        self.n_memory_levels = node.HW_description['memory']['levels']
 
     def get_tiling(self, level):
         # This function is used to create the tiling of either a convolutional layer or

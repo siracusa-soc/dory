@@ -65,3 +65,7 @@ APP_CFLAGS += -DFS_READ_FS
 #PLPBRIDGE_FLAGS += -f
 
 include $(RULES_DIR)/pmsis_rules.mk
+
+asic:
+	openocd -f ./scripts/openocd-ft2232h.cfg &
+	riscv32-unknown-elf-gdb -x ./scripts/elf_run.gdb BUILD/SIRACUSA/GCC_RISCV/test/test &

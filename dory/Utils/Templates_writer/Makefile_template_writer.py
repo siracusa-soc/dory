@@ -31,7 +31,7 @@ def print_template_Makefile(
     tk = OrderedDict([])
     file_list_w = []
     for i, node in enumerate(graph):
-        if "Conv" in node.name or "FullyConnected" in node.name:
+        if (not (hasattr(node, "offloadable") and node.offloadable and hasattr(node, "use_wmem") and node.use_wmem)) and ("Conv" in node.name or "FullyConnected" in node.name):
             file_list_w.append(node.name+"_weights.hex")
 
     tk['n_inputs'] = graph[0].n_test_inputs

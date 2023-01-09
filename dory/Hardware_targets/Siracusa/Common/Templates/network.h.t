@@ -113,8 +113,10 @@ static int allocate_layer[${len(DORY_HW_graph)}] = {\
 % else:
 static char *Weights_name[${len(DORY_HW_graph)}] = {\
 % for i in range(len(DORY_HW_graph)):
-% if 'Conv' in DORY_HW_graph[i].name or 'FullyConnected' in DORY_HW_graph[i].name:
+% if (not (hasattr(DORY_HW_graph[i], "offloadable") and DORY_HW_graph[i].offloadable and hasattr(DORY_HW_graph[i], "use_wmem") and DORY_HW_graph[i].use_wmem)) and( 'Conv' in DORY_HW_graph[i].name or 'FullyConnected' in DORY_HW_graph[i].name):
 Weights_${DORY_HW_graph[i].name}${'' if loop.last else ', '}\
+% elif (hasattr(DORY_HW_graph[i], "offloadable") and DORY_HW_graph[i].offloadable and hasattr(DORY_HW_graph[i], "use_wmem") and DORY_HW_graph[i].use_wmem) and( 'Conv' in DORY_HW_graph[i].name or 'FullyConnected' in DORY_HW_graph[i].name):
+${DORY_HW_graph[i].name}_weights${'' if loop.last else ', '}\
 % else:
 "None"${'' if loop.last else ', '}\
 % endif

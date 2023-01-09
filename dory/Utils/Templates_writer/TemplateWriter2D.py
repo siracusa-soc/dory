@@ -154,6 +154,8 @@ class TemplateWriter2D_L2(TemplateWriter):
         self.padding_left = padding_left
         self.padding_right = padding_right
         self.stride = s[0]
+        self.signed = (node.input_activation_type == 'int')
+
 
         ################## NEED A REWRITING IN THIS TEMPLATE PART ######################
         #### VARIABLE CREATION FOR COMPATIBILITY WITH THE SECTION AFTER ################
@@ -220,7 +222,10 @@ class TemplateWriter2D_L2(TemplateWriter):
         ################################################################################
 
         self.nof = n_out
-        self.factor = node.tiling_dimensions["L3"]["output_dimensions"][0] / n_out
+        if node.HW_description['memory']['levels'] > 2:
+            self.factor = node.tiling_dimensions["L3"]["output_dimensions"][0] / n_out
+        else:
+            self.factor = 1
         # x parameters
         self.x_h = h_in
         self.x_w = w_in

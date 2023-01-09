@@ -64,11 +64,11 @@ static void checksum(const char *name, const uint8_t *d, size_t size, uint32_t s
         printf("OK\n");
     else{
         printf("Failed: true [%u] vs. calculated [%u]\n", sum_true, sum);
-	printf("Got the following:\r\n");
-	for (int i = 0; i < size; i++){
-	  printf("%u, ", d[i]);
-	}
-	printf("\r\n");
+	/* printf("Got the following:\r\n"); */
+	/* for (int i = 0; i < size; i++){ */
+	/*   printf("%u, ", d[i]); */
+	/* } */
+	/* printf("\r\n"); */
     }
 }
 #endif
@@ -212,10 +212,11 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
     if (L3_input_layers[i] == 1)
       L2_input = dmalloc(activations_size[i], dir);
     
-    if (layer_with_weights[i] == 1)
+    if (layer_with_weights[i] == 1 && layer_wmem_ptr[i]==NULL){
       L2_weights = dmalloc(weights_size[i], dir);
+    }
 
-    if (allocate_layer[i] == 1){
+    if (allocate_layer[i] == 1 && layer_wmem_ptr[i]==NULL){
       ram_read(L2_weights, L3_weights_curr, weights_size[i]);
     }
     % else:
@@ -232,14 +233,12 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
     if (i == 0 || branch_change[i-1] == 0) {
       checksum("L2 input", L2_input, activations_size[i], activations_checksum[i][exec]);
 % if l3_supported:
-      if (allocate_layer[i] == 1){
+      if (allocate_layer[i] == 1 && layer_wmem_ptr[i] == NULL){
 % else:
-      if (layer_with_weights[i])
+	  if (layer_with_weights[i] && layer_wmem_ptr[i] == NULL){
 % endif
         checksum("L2 weights", L2_weights, weights_size[i], weights_checksum[i]);
       }
-      else
-        printf("Weights in L3\n");
     }
     else
       printf("Switching branch, already checked activation\n");
@@ -323,7 +322,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
 
     // Free memory
     % if l3_supported:
-    if (layer_with_weights[i] == 1)
+    if (layer_with_weights[i] == 1 && layer_wmem_ptr[i]==NULL)
       dfree(weights_size[i], dir);
     dfree(activations_size[i], dir);
     if (branch_input[i] == 1)
@@ -408,7 +407,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
 % endif
     }
 % if l3_supported:
-    if (layer_with_weights[i])
+    if (layer_with_weights[i] && layer_wmem_ptr[i] == NULL)
        L3_weights_curr += L3_weights_size[weight_l_cnt++];
 % endif
     dir = !dir;

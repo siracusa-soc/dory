@@ -33,6 +33,7 @@ class Tiler_Conv2D:
         self.prev_node = prev_node
         self.conf = conf
         self.acc = accelerator
+        self.n_memory_levels = node.HW_description['memory']['levels']
 
     def get_tiling(self, level):
         # This function generate the layer function to be included in the project for the
@@ -208,10 +209,10 @@ class Tiler_Conv2D:
         w_in   = self.node.tiling_dimensions["L2"]["input_dimensions"][2]
         h_in   = self.node.tiling_dimensions["L2"]["input_dimensions"][1]
         h_out   = self.node.tiling_dimensions["L2"]["output_dimensions"][1]
-        if self.node.tiling_dimensions["L3"]["output_dimensions"][1] > self.node.tiling_dimensions["L2"]["output_dimensions"][1]:
+        if self.n_memory_levels > 2 and self.node.tiling_dimensions["L3"]["output_dimensions"][1] > self.node.tiling_dimensions["L2"]["output_dimensions"][1]:
             h_in   = self.node.tiling_dimensions["L2"]["output_dimensions"][1] * s[0] + (ks[0] - 1) - (s[0] - 1) + ( p[2] )
             in_mem = int(self.node.tiling_dimensions["L2"]["input_activation_memory"] / self.node.tiling_dimensions["L2"]["input_dimensions"][1] * h_in)
-        if self.node.tiling_dimensions["L3"]["input_dimensions"][1] > self.node.tiling_dimensions["L2"]["input_dimensions"][1]:
+        if self.n_memory_levels > 2 and self.node.tiling_dimensions["L3"]["input_dimensions"][1] > self.node.tiling_dimensions["L2"]["input_dimensions"][1]:
             h_out  = int(np.floor((self.node.tiling_dimensions["L2"]["input_dimensions"][1] - (ks[0] - 1) + (s[0] - 1)) / s[0]))
             out_mem = int(self.node.tiling_dimensions["L2"]["output_activation_memory"] / self.node.tiling_dimensions["L2"]["output_dimensions"][1] * h_out)
         if "Addition" not in self.node.name and "Pool" not in self.node.name:
