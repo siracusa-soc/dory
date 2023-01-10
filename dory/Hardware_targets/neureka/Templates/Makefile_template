@@ -25,6 +25,10 @@ else
 CORE= $(CORE)
 endif
 
+ifeq '$(io)' 'uart'
+APP_CFLAGS += -DIO_UART
+endif
+
 % if sdk == 'gap_sdk':
 APP_CFLAGS += -DNUM_CORES=$(CORE) -DGAP_SDK=1 -Iinc -O3 -w -fno-tree-loop-distribute-patterns -flto
 APP_LDFLAGS += -lm -flto

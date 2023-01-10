@@ -17,6 +17,7 @@
  * limitations under the License. 
  */
 #include "network.h"
+#include "siracusa_padctrl.h"
 
 #define FLASH_BUFF_SIZE 128
 % if verbose:
@@ -69,15 +70,17 @@ void open_filesystem_and_ram(struct pi_device *flash, struct pi_device *fs)
   pi_ram_open(&ram);
 }
 
+#define UART_TX_PAD PAD_GPIO38
+#define UART_RX_PAD PAD_GPIO39
+
+
 int main () {
+#ifdef IO_UART
+  padctrl_mode_set(UART_RX_PAD, PAD_MODE_UART0_RX);
+  padctrl_mode_set(UART_TX_PAD, PAD_MODE_UART0_TX);
+#endif
   char* L2_memory_buffer;
   char* L2_input;
-  PMU_set_voltage(1000, 0);
-  pi_time_wait_us(10000);
-  pi_freq_set(PI_FREQ_DOMAIN_FC, ${fc_frequency});
-  pi_time_wait_us(10000);
-  pi_freq_set(PI_FREQ_DOMAIN_CL, ${cl_frequency});
-  pi_time_wait_us(10000);
 % if sdk == 'pulp-sdk':
   #if __PLATFORM__ == ARCHI_PLATFORM_FPGA
     *(int*)(ICACHE_PREFETCH) = 0xFFFF;

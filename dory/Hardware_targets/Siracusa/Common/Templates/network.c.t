@@ -21,7 +21,7 @@
 l3_supported = DORY_HW_graph[0].HW_description['memory']['levels'] > 2
 %>\
 #define DEFINE_CONSTANTS
-%if not l3_supported:
+% if not l3_supported and files_list != ' ':
 #include "weights.h"
 %endif
 #include "pmsis.h"
@@ -41,15 +41,21 @@ l3_supported = DORY_HW_graph[0].HW_description['memory']['levels'] > 2
 % if verbose:
 #define VERBOSE 1
 % endif
+static int nb_callback_exec=0;
+
+static void cluster_task_callback(void *arg)
+{
+  nb_callback_exec++;
+}
 
 % if 'Yes' in performance or 'Perf_final' in verbose_level:
 static void print_perf(const char *name, const int cycles, const int macs) {
   float perf = (float) macs / cycles;
-  printf("\n%s performance:\n", name);
-  printf("  - num cycles: %d\n", cycles);
-  printf("  - MACs: %d\n", macs );
-  printf("  - MAC/cycle: %g\n", perf);
-  printf("  - n. of Cores: %d\n\n", NUM_CORES);
+  printf("\r\n%s performance:\r\n", name);
+  printf("  - num cycles: %d\r\n", cycles);
+  printf("  - MACs: %d\r\n", macs );
+  printf("  - MAC/cycle: %g\r\n", perf);
+  printf("  - n. of Cores: %d\r\n\r\n", NUM_CORES);
 }
 
 % endif
@@ -61,14 +67,14 @@ static void checksum(const char *name, const uint8_t *d, size_t size, uint32_t s
 
     printf("Checking %s: Checksum ", name);
     if (sum_true == sum)
-        printf("OK\n");
+        printf("OK\r\n");
     else{
-        printf("Failed: true [%u] vs. calculated [%u]\n", sum_true, sum);
-	/* printf("Got the following:\r\n"); */
-	/* for (int i = 0; i < size; i++){ */
-	/*   printf("%u, ", d[i]); */
-	/* } */
-	/* printf("\r\n"); */
+        printf("Failed: true [%u] vs. calculated [%u]\r\n", sum_true, sum);
+	printf("Got the following:\r\n");
+	for (int i = 0; i < size; i++){
+	  printf("%u, ", d[i]);
+	}
+	printf("\r\n");
     }
 }
 #endif
@@ -92,9 +98,9 @@ void network_initialize() {
   L3_output = ram_malloc(L3_OUTPUT_SIZE);
 
 #ifdef VERBOSE
-  printf("\nL3 Buffer alloc initial\t@ %d:\t%s\n", (unsigned int)L3_weights, L3_weights?"Ok":"Failed");
-  printf("\nL3 Buffer alloc initial\t@ %d:\t%s\n", (unsigned int)L3_input, L3_input?"Ok":"Failed");
-  printf("\nL3 Buffer alloc initial\t@ %d:\t%s\n", (unsigned int)L3_output, L3_output?"Ok":"Failed");
+  printf("\r\nL3 Buffer alloc initial\t@ %d:\t%s\r\n", (unsigned int)L3_weights, L3_weights?"Ok":"Failed");
+  printf("\r\nL3 Buffer alloc initial\t@ %d:\t%s\r\n", (unsigned int)L3_input, L3_input?"Ok":"Failed");
+  printf("\r\nL3 Buffer alloc initial\t@ %d:\t%s\r\n", (unsigned int)L3_output, L3_output?"Ok":"Failed");
 #endif
 
   void *w_ptr = L3_weights;
@@ -120,7 +126,7 @@ void network_terminate() {
 void execute_layer_fork(void *args) {
   layer_args_t *layer_args = (layer_args_t *)args;
   if (pi_core_id() == 0) layer_args->L1_buffer = pmsis_l1_malloc(${l1_buffer});
-
+  // soft-clear NEUREKA
   switch (layer_args->layer_id)
   {
 % for i, node in enumerate(DORY_HW_graph):
@@ -227,7 +233,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
 #ifdef VERBOSE
         % if l3_supported:
     if (L3_input_layers[i] == 1)
-      printf("Input in L3\n");
+      printf("Input in L3\r\n");
     else
 % endif
     if (i == 0 || branch_change[i-1] == 0) {
@@ -241,7 +247,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
       }
     }
     else
-      printf("Switching branch, already checked activation\n");
+      printf("Switching branch, already checked activation\r\n");
 #endif
 % endif
 
@@ -263,6 +269,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
 /*
 - Execution of the layers_pointers
 */
+      struct pi_task task;
 % if 'Yes' in performance or 'Perf_final' in verbose_level:
     // perf measurement begin
     pi_perf_conf(1<<PI_PERF_CYCLES);
@@ -271,13 +278,23 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
     pi_perf_cl_start();
 % endif
     pi_cluster_task(&cluster_task, execute_layer_fork, &args);
+    pi_task_callback(&task, cluster_task_callback, (void *)&task);
     pi_open_from_conf(&cluster_dev, &conf);
     if (pi_cluster_open(&cluster_dev))
       return;
     // Then offload an entry point, this will get executed on the cluster controller
     cluster_task.stack_size = ${master_stack};
     cluster_task.slave_stack_size = ${slave_stack};
-    pi_cluster_send_task_to_cl(&cluster_dev, &cluster_task);
+    //pi_cluster_send_task_to_cl(&cluster_dev, &cluster_task);
+    /* // closing of the cluster */
+    /* pi_cluster_close(&cluster_dev); */
+    // Then offload an entry point, this will get executed on the cluster controller
+    pi_cluster_send_task_to_cl_async(&cluster_dev, &cluster_task, &task);
+    while (nb_callback_exec == 0)
+    {
+      pi_yield_polling();
+      //pi_yield();
+    }
     // closing of the cluster
     pi_cluster_close(&cluster_dev);
 % if 'Yes' in performance or 'Perf_final' in verbose_level:
@@ -288,7 +305,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
 % endif
 
 % if 'Yes' in performance:
-    print_perf(Layers_name[i], perf_cyc, NODEs_MACS[i]);
+    //print_perf(Layers_name[i], perf_cyc, NODEs_MACS[i]);
 % endif
 
     // TODO: What error?
@@ -301,11 +318,11 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
     asm volatile("": : :"memory");
 
 #ifdef VERBOSE
-    printf("Layer %s %d ended: \n", Layers_name[i], i);
+    printf("Layer %s %d ended: \r\n", Layers_name[i], i);
 % if 'Check_all' in verbose_level:
     % if l3_supported:
     if (L3_output_layers[i]==1) {
-      printf("Output in L3. Expected checksum: %d\n", activations_out_checksum[i][exec]);
+      printf("Output in L3. Expected checksum: %d\r\n", activations_out_checksum[i][exec]);
     } else {
 % endif
       checksum(i + 1 < ${len(DORY_HW_graph)} ? "L2 output" : "final output",
@@ -313,13 +330,12 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
       % if l3_supported:
     }
 % endif
-    printf("\n");
+    printf("\r\n");
 % elif 'Last' in verbose_level:
     if (i == ${len(DORY_HW_graph) - 1})
         checksum("final layer", L2_output, activations_out_size[i], activations_out_checksum[i][exec]);
 % endif
 #endif
-
     // Free memory
     % if l3_supported:
     if (layer_with_weights[i] == 1 && layer_wmem_ptr[i]==NULL)
@@ -415,6 +431,9 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
 
   memcpy(L2_output, l2_final_output, activations_out_size[${len(DORY_HW_graph)-1}]);
 
+
+    
+  
 /* ---------------------------------- */
 /* --------- SECTION 2 END ---------- */
 /* ---------------------------------- */
@@ -422,7 +441,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
 /* ---------------------------------- */
 /* -------- SECTION 3 BEGIN --------- */
 /* ---------------------------------- */
-
+  
 % if 'Perf_final' in verbose_level:
   print_perf("Final", cycle_network_execution, ${MACs});
 % endif

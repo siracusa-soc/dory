@@ -221,7 +221,7 @@ class nnx_C_Parser(Parser_HW_to_C):
                     constants[3] = name
 
             weights = bytearray()
-            for const in constants:
+            for const in constants[:1]:
                 if const != 0:
                     weights += getattr(node, const)['value'].tobytes()
 
@@ -230,15 +230,29 @@ class nnx_C_Parser(Parser_HW_to_C):
 
             weightstr = ''
             weightstr += f"#include \"{node.name}_weights.h\"\r\n"
-            weightstr += '__attribute__ ((section(".weightmem_mram"))) '
+            weightstr += f"#include \"pmsis.h\"\r\n"
+            weightstr += '__attribute__ ((section(".weightmem_sram"))) '
             weightstr += f"unsigned char {node.name}_weights[{len(weights)}] = "
             weightstr += "{"
             weightstr += ", ".join("0x"+format(x, '02x') for x in weights)
             weightstr += "};\r\n"
 
+            for const in constants[1:]:
+                if const != 0:
+                    val = bytes(getattr(node,const)['value'])
+                    weightstr += 'PI_L2 '
+                    weightstr += f"unsigned char {node.name}_{const}[{len(val)}] = "
+                    weightstr += "{"
+                    weightstr += ", ".join("0x"+format(x, '02x') for x in val)
+                    weightstr += "};\r\n"
+
             weightstr_h = f"#ifndef __INCLUDE_GUARD_{node.name}\r\n"
             weightstr_h += f"#define __INCLUDE_GUARD_{node.name}\r\n"
-            weightstr_h += f"extern unsigned char {node.name}_weights[{len(weights)}];"
+            weightstr_h += f"extern unsigned char {node.name}_weights[{len(weights)}];\r\n"
+            for const in constants[1:]:
+                if const != 0:
+                    val = bytes(getattr(node,const)['value'])
+                    weightstr_h += f"extern unsigned char {node.name}_{const}[{len(val)}];\r\n"
             weightstr_h += f"\r\n#endif"
 
             filepath = os.path.join(self.app_directory, 'src', node.name + "_weights.c")

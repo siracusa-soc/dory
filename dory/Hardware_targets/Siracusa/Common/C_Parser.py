@@ -191,7 +191,7 @@ class C_Parser_Siracusa(Parser_HW_to_C):
             weightstr = ''
             weightstr += f"#include \"{node.name}_weights.h\"\r\n"
             weightstr += f"#include \"pmsis.h\"\r\n"
-            weightstr += '__attribute__ ((section(".weightmem_mram"))) '
+            weightstr += '__attribute__ ((section(".weightmem_sram"))) '
             weightstr += f"unsigned char {node.name}_weights[{len(weights)}] = "
             weightstr += "{"
             weightstr += ", ".join("0x"+format(x, '02x') for x in weights)

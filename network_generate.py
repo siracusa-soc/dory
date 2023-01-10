@@ -39,7 +39,6 @@ def dory_to_c(graph, target, conf, confdir, verbose_level, perf_layer, optional,
     dory_hw_to_c = onnx_manager.C_Parser
     dory_hw_to_c(graph, conf, confdir, verbose_level, perf_layer, optional, appdir, n_inputs).full_graph_parsing()
 
-
 def network_generate(frontend, target, conf_file, verbose_level='Check_all+Perf_final', perf_layer='No', optional='auto',
                      appdir='./application'):
     print(f"Using {frontend} as frontend. Targeting {target} platform. ")
@@ -69,7 +68,7 @@ def network_generate(frontend, target, conf_file, verbose_level='Check_all+Perf_
 
 if __name__ == '__main__':
     Frontends = ["NEMO", "Quantlab"]
-    Hardware_targets = ["GAP8.GAP8_board", "GAP8.GAP8_board_L2", "PULP.PULP_gvsoc", "Siracusa.Siracusa","Siracusa.Siracusa_gvsoc","neureka.ne16", "neureka.neureka","Occamy", "Diana.Diana_TVM", "Diana.Diana_SoC", "Siracusa.Siracusa_board"]
+    Hardware_targets = ["GAP8.GAP8_board", "GAP8.GAP8_board_L2", "PULP.PULP_gvsoc", "Siracusa.Siracusa_L2", "Siracusa.Siracusa","Siracusa.Siracusa_gvsoc","neureka.ne16", "neureka.neureka","Occamy", "Diana.Diana_TVM", "Diana.Diana_SoC", "Siracusa.Siracusa_board"]
 
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter)
     parser.add_argument('frontend', type=str, choices=Frontends, help='Frontend from which the onnx is produced and from which the network has been trained')
@@ -87,5 +86,4 @@ if __name__ == '__main__':
     parser.add_argument('--app_dir', default='./application', help='Path to the generated application. Default: ./application')
 
     args = parser.parse_args()
-
     network_generate(args.frontend, args.hardware_target, args.config_file, args.verbose_level, args.perf_layer, args.optional, args.app_dir)

@@ -1,6 +1,6 @@
 from dory.Hardware_targets.Siracusa.Common import onnx_manager_Siracusa
-from dory.Hardware_targets.Siracusa.Siracusa_gvsoc.HW_Pattern_rewriter import Pattern_rewriter
-from dory.Hardware_targets.Siracusa.Siracusa_gvsoc.Tiler import Tiler
+from dory.Hardware_targets.Siracusa.Siracusa_L2.HW_Pattern_rewriter import Pattern_rewriter
+from dory.Hardware_targets.Siracusa.Siracusa_L2.Tiler import Tiler
 import os
 
 class onnx_manager(onnx_manager_Siracusa):

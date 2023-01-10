@@ -280,8 +280,8 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
     pi_cluster_send_task_to_cl_async(&cluster_dev, &cluster_task, &task);
     while (nb_callback_exec== 0)
     {
-      pi_yield_polling();
-      // pi_yield();
+      //pi_yield_polling();
+      pi_yield();
     }
     // closing of the cluster
     pi_cluster_close(&cluster_dev);

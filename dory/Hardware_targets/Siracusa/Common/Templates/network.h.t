@@ -27,7 +27,7 @@
    l3_supported = DORY_HW_graph[0].HW_description['memory']['levels'] > 2
    single_input = n_inputs==1
 %>\
-% if not l3_supported:
+   % if not l3_supported and files_list != ' ':
 #include "weights_definition.h"
 % endif
 #include <stddef.h>

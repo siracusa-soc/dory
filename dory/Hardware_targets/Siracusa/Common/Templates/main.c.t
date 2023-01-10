@@ -44,7 +44,7 @@ unsigned int PMU_set_voltage(unsigned int Voltage, unsigned int CheckFrequencies
 #define UART_RX_PAD PAD_GPIO39
 
 int main () {
-#ifdef PLATFORM=RTL
+#ifdef IO_UART
   padctrl_mode_set(UART_RX_PAD, PAD_MODE_UART0_RX);
   padctrl_mode_set(UART_TX_PAD, PAD_MODE_UART0_TX);
 #endif
