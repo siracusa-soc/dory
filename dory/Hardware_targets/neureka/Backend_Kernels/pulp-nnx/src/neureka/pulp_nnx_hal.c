@@ -53,7 +53,7 @@ void print_task(nnx_task_t t){
   printf("\t padding : %u \r\n", cfg.padding);
   printf("\t weight_offset_factor : %u \r\n", cfg.weight_offset_factor);
   printf("\t filter_mask : %u \r\n", cfg.filter_mask);
-  printf("\t conf0 : %u \r\n", cfg.conf0);
+  printf("\t conf0 : 0x%08x \r\n", cfg.conf0);
   printf("\t input_stride : %u,%u,%u \r\n", cfg.input_stride.d0, cfg.input_stride.d1, cfg.input_stride.d2);
   printf("\t output_stride : %u,%u,%u \r\n", cfg.output_stride.d0, cfg.output_stride.d1, cfg.output_stride.d2);
   printf("\t weights_stride : %u,%u,%u \r\n", cfg.weights_stride.d0, cfg.weights_stride.d1, cfg.weights_stride.d2);
@@ -262,6 +262,7 @@ nnx_error_code nnx_conv_1x1(nnx_cfg_t *cfg,
   BIT_SET(cfg->conf0, weights.offset_mode | NEUREKA_FLAG_ACTIVATION_PREFETCH| NEUREKA_FLAG_MODE_1x1 | mode16 |
                  (weights.bitwidth - 1));
 
+  cfg->conf0 |= (1<<30);
   // Global static variables needed by update_dims
   outbytes = output.bitwidth / 8;
   weight_d0_stride =

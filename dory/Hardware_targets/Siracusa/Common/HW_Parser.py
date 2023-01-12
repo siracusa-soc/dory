@@ -136,6 +136,7 @@ class onnx_manager_Siracusa(Parser_DORY_to_HW):
         try:
             memEstimate = (np.prod(node.input_dimensions)*node.input_channels + np.prod(node.output_dimensions)*node.output_channels + np.prod(node.kernel_shape)*node.input_channels*node.output_channels)
 
+            # SCHEREMO: MVN2 Hack
             if memEstimate > 1500000:
                 return False
         except:
@@ -165,7 +166,7 @@ class onnx_manager_Siracusa(Parser_DORY_to_HW):
         if 'offload' in self.config_file and self.config_file['offload'] == True:
             print("Offloading to N-EUREKA")
             for idx, node in enumerate(self.DORY_Graph):
-                if idx == 0:
+                if (self.HW_description['memory']['levels']>2 and idx==0):
                     node.offloadable = False
                 else:
                     node.offloadable  = onnx_manager_Siracusa.is_offloadable(node)

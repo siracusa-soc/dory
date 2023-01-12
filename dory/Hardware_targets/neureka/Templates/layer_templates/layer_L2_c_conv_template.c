@@ -92,6 +92,8 @@ static void contract_strided_output(int i_store_y, DMA_copy* DMA_copy_y, uint32_
   reshuffle_copy.number_of_1d_copies = cp_y_tile_size_w;
   reshuffle_copy.stride_2d = ${stride}*wEffY[DMA_Y_INDEX(i_store_y)]*blockwidth;
   reshuffle_copy.stride_1d = ${stride}*blockwidth;
+  
+  dory_dma_barrier(&reshuffle_copy);  
   dory_dma_memcpy_async(&reshuffle_copy);
   dory_dma_barrier(&reshuffle_copy);
 
@@ -113,9 +115,9 @@ void ${func_name}(
   /////////////
   // Logging //
   /////////////
-#ifdef GVSOC_LOGGING
-  nnx_activate_gvsoc_logging(GVSOC_LOG_LEVEL);
-#endif
+/* #ifdef GVSOC_LOGGING */
+/*   nnx_activate_gvsoc_logging(GVSOC_LOG_LEVEL); */
+/* #endif */
 
   //////////////////////////
   // Arguments assignment //
@@ -288,6 +290,10 @@ void ${func_name}(
   // Accelerator init //
   //////////////////////
 
+  NEUREKA_SETPRIORITY_NEUREKA();
+  NEUREKA_RESET_MAXSTALL();
+  NEUREKA_SET_MAXSTALL(8);
+  
   nnx_soft_clear();
 
   ///////////////////////
@@ -385,6 +391,8 @@ void ${func_name}(
 
   for (int i_tile = 0; i_tile < total_tiles; i_tile++)
   {
+      NEUREKA_CG_ENABLE();
+      
 //   /$$$$$$   /$$$$$$  /$$   /$$ /$$$$$$$$ /$$$$$$  /$$$$$$  /$$   /$$ /$$$$$$$  /$$$$$$$$
 //  /$$__  $$ /$$__  $$| $$$ | $$| $$_____/|_  $$_/ /$$__  $$| $$  | $$| $$__  $$| $$_____/
 // | $$  \__/| $$  \ $$| $$$$| $$| $$        | $$  | $$  \__/| $$  | $$| $$  \ $$| $$      
@@ -504,7 +512,7 @@ void ${func_name}(
     DMA_copy_y[DMA_Y_INDEX(i_tile)].length_1d_copy = y_length_nof_byte;
 
     ////////////////////////
-    // NE16 configuration //
+    // NEUREKA configuration //
     ////////////////////////
     int is_border_tile = 0
   % if tile_dim_nif != 1:
@@ -538,7 +546,11 @@ void ${func_name}(
     %endif
     
     nnx_task_to_offload->infeat_ptr = x_tile_ptr;
+    #ifdef IO_UART
+    nnx_task_to_offload->weights_ptr = w_tile_ptr - 0x10400000;
+    #else
     nnx_task_to_offload->weights_ptr = w_tile_ptr;
+    #endif
 % if FLAG_BATCHNORM == 1:
     nnx_task_to_offload->scale_ptr = scale_tile_ptr;
     nnx_task_to_offload->scale_bias_ptr = bias_tile_ptr;
@@ -594,7 +606,7 @@ void ${func_name}(
     if (is_store) {
       %if stride > 1:
       // SCHEREMO: Contract outputs w/ stride factor
-      nnx_wait_on_id(dma_copy_y_job_ids[DMA_Y_INDEX(i_store_y)]);
+      // nnx_wait_on_id(dma_copy_y_job_ids[DMA_Y_INDEX(i_store_y)]);
       contract_strided_output(i_store_y, DMA_copy_y, wEffY, dory_dma_channel);
       %endif
       
@@ -634,7 +646,7 @@ void ${func_name}(
     }
 
     //print_task(*nnx_task_to_offload);
-    
+    //nnx_run_blocking();
     nnx_run_async();
     nnx_cfg_t cfg = nnx_task_to_offload->cfg;
     /* printf("in feat d0:\t\t %08x\r\n", cfg.input_stride.d0); */
@@ -762,23 +774,42 @@ void ${func_name}(
     if (is_load_w) i_db_w = !i_db_w;
     i_db_y = !i_db_y;
     
-    /* printf("Input: "); */
+    /* printf("Input: \r\n"); */
     /* for (int i=0;i<30;i++){ */
     /*   printf("%u, ", ((uint8_t*)x_tile_ptr)[i]); */
     /* } */
     /* printf("\r\n"); */
-    /* printf("Input @ linebreak: "); */
+    /* printf("Input @ linebreak: \r\n"); */
     /* for (int i=0;i<30;i++){ */
     /*   printf("%u, ", ((uint8_t*)x_tile_ptr)[((x_tile_size_w)*x_length_nif_byte) + i]); */
     /* } */
     /* printf("\r\n"); */
-    /* printf("Input @ linebreak 2: "); */
+    /* printf("Input @ linebreak 2: \r\n"); */
     /* for (int i=0;i<30;i++){ */
     /*   printf("%u, ", ((uint8_t*)x_tile_ptr)[((2*x_tile_size_w)*x_length_nif_byte) + i]); */
     /* } */
     /* printf("\r\n"); */
     /* nnx_wait_empty(); */
-    /* printf("Output1: "); */
+
+    /* printf("Weight:\r\n"); */
+    /*   for (int i=0;i<30;i++){ */
+    /*   printf("%u, ", ((uint8_t*)w_tile_ptr)[i]); */
+    /* } */
+    /* printf("\r\n"); */
+
+    /* printf("Scale:\r\n"); */
+    /*   for (int i=0;i<30;i++){ */
+    /*   printf("%u, ", ((uint8_t*)scale_tile_ptr)[i]); */
+    /* } */
+    /* printf("\r\n"); */
+
+    /* printf("Bias:\r\n"); */
+    /*   for (int i=0;i<30;i++){ */
+    /*   printf("%u, ", ((uint8_t*)bias_tile_ptr)[i]); */
+    /* } */
+    /* printf("\r\n"); */
+    
+    /* printf("Output1: \r\n"); */
     /* for (int i=0;i<30;i++){ */
     /*   printf("%u, ", ((uint8_t*)y_tile_ptr)[i]); */
     /* } */
@@ -805,7 +836,6 @@ void ${func_name}(
     } else {
       nnx_wait_empty();
     }
-
       %if stride > 1:
     contract_strided_output(i_store_y, DMA_copy_y, wEffY, dory_dma_channel);
       %endif
@@ -819,5 +849,6 @@ void ${func_name}(
   
 % endif
   // clear NNX for cleanup
+    NEUREKA_CG_DISABLE();
   nnx_soft_clear();
 }

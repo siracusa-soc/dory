@@ -285,13 +285,15 @@ def layer_generate(
     DORY_to_DORY_HW = onnx_manager.onnx_manager
     DORY_Graph = DORY_to_DORY_HW(DORY_Graph, json_configuration_file, json_configuration_file_root).full_graph_parsing()
     # Deployment of the model on the target architecture
+    DORY_Graph[0].n_test_inputs=1
     onnx_manager = importlib.import_module(f'dory.Hardware_targets.{hardware_target}.C_Parser')
     DORY_HW_to_C = onnx_manager.C_Parser
     _DORY_Graph = DORY_HW_to_C(DORY_Graph, json_configuration_file, json_configuration_file_root,
                               verbose_level, perf_layer, optional, app_dir).full_graph_parsing()
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('hardware_target', type=str, choices=["Siracusa.Siracusa_gvsoc", "nnx.ne16", "neureka.neureka", "Occamy", "Diana"],
+    parser.add_argument('hardware_target', type=str, choices=["Siracusa.Siracusa_L2", "Siracusa.Siracusa_gvsoc", "nnx.ne16", "neureka.neureka", "Occamy", "Diana"],
                         help='Hardware platform for which the code is optimized')
     parser.add_argument('--config_file', default='config_files/config_single_layer.json', type=str,
                         help='Path to the JSON file that specifies the ONNX file of the network and other information. Default: config_files/config_single_layer.json')

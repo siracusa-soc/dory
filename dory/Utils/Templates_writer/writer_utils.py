@@ -4,7 +4,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -29,6 +29,8 @@ import re
 def print_file_list(x):
     # This function is used to generate a string with all input files.
     s = repr(x).replace("[", "").replace("]", "").replace("'", '"')
+    if s == '':
+        s = ' '
     return s
 
 def print_test_vector(x, type_data):
