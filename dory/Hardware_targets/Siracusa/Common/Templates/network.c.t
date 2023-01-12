@@ -70,11 +70,11 @@ static void checksum(const char *name, const uint8_t *d, size_t size, uint32_t s
         printf("OK\r\n");
     else{
         printf("Failed: true [%u] vs. calculated [%u]\r\n", sum_true, sum);
-	/* printf("Got the following:\r\n"); */
-	/* for (int i = 0; i < size; i++){ */
-	/*   printf("%u, ", d[i]); */
-	/* } */
-	/* printf("\r\n"); */
+	printf("Got the following:\r\n");
+	for (int i = 0; i < size; i++){
+	  printf("%u, ", d[i]);
+	}
+	printf("\r\n");
     }
 }
 #endif
@@ -278,7 +278,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
     pi_perf_cl_start();
 % endif
     pi_cluster_task(&cluster_task, execute_layer_fork, &args);
-    pi_task_callback(&task, cluster_task_callback, (void *)&task);
+    //pi_task_callback(&task, cluster_task_callback, (void *)&task);
     pi_open_from_conf(&cluster_dev, &conf);
     if (pi_cluster_open(&cluster_dev))
       return;
@@ -289,7 +289,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
     // closing of the cluster
     // pi_cluster_close(&cluster_dev);
     //Then offload an entry point, this will get executed on the cluster controller
-    /* pi_cluster_send_task_to_cl_async(&cluster_dev, &cluster_task, &task); */
+    //pi_cluster_send_task_to_cl_async(&cluster_dev, &cluster_task, &task);
     /* while (nb_callback_exec == 0) */
     /* { */
     /*   pi_yield_polling(); */

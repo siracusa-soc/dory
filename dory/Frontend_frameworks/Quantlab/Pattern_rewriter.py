@@ -6,7 +6,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -58,7 +58,7 @@ class Pattern_rewriter:
         DORY_BNRelu_node.constant_names = ["outshift"]
         for key, value in self.graph[i[0]].__dict__.items():
             if isinstance(value, dict):
-                if bool(value["value"].shape):
+                if bool(value["value"].shape) and np.prod(value["value"].shape) > 1:
                     k = value["value"]
                     DORY_BNRelu_node.k = {}
                     DORY_BNRelu_node.k["value"] = k
@@ -67,7 +67,10 @@ class Pattern_rewriter:
                 else:
                     DORY_BNRelu_node.name = "Requant"
                     DORY_BNRelu_node.op_type = "Requant"
-                    outmul = value["value"]
+                    if bool(value["value"].shape):
+                        outmul = int(value["value"].item())
+                    else:
+                        outmul = value["value"]
                     DORY_BNRelu_node.outmul = {}
                     DORY_BNRelu_node.outmul["value"] = outmul
                     DORY_BNRelu_node.outmul["layout"] = ""
@@ -75,7 +78,7 @@ class Pattern_rewriter:
         ### l ###
         for key, value in self.graph[i[1]].__dict__.items():
             if isinstance(value, dict):
-                if bool(value["value"].shape):
+                if bool(value["value"].shape) and np.prod(value["value"].shape) > 1:
                     l = value["value"]
                     DORY_BNRelu_node.l = {}
                     DORY_BNRelu_node.l["value"] = l
@@ -84,6 +87,10 @@ class Pattern_rewriter:
                 else:
                     outadd = value["value"]
                     DORY_BNRelu_node.outadd = {}
+                    if bool(value["value"].shape):
+                        outadd = int(value["value"].item())
+                    else:
+                        outadd = value["value"]
                     DORY_BNRelu_node.outadd["value"] = outadd
                     DORY_BNRelu_node.outadd["layout"] = ""
                     DORY_BNRelu_node.constant_names.append("outadd")
@@ -159,4 +166,3 @@ class Pattern_rewriter:
         for ele in sorted(i, reverse = True):
             del self.graph[ele]
         self.graph.insert(i[0], DORY_Pad_node)
-

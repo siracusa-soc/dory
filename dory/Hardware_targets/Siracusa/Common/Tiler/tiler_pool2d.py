@@ -194,7 +194,7 @@ class Tiler_Pool2D_Siracusa():
             if name in ["l","k"]:
                 constants+=1
         if constants > 0:
-            constants_tile_dimension = db * tile_n * constants  * self.HW_node.constant_bits / 8
+            constants_tile_dimension = db * tile_n * constants  * int(self.HW_node.constant_bits / 8)
         else:
             constants_tile_dimension = 0
         constraint_all = input_tile_dimension + output_tile_dimension + constants_tile_dimension + 20
@@ -241,7 +241,7 @@ class Tiler_Pool2D_Siracusa():
             if tile_w_in >= inp_dim[1]:
                 tile_w_in = inp_dim[1]
                 tile_w_out = int((tile_w_in -(ks[1] - 1) + (p[1] + p[3]) + (s[0] - 1))/s[0])
-            return ([], [tile_n, tile_h_in, tile_w_in], [tile_n, tile_h_out, tile_w_out])
+            return ([0], [tile_n, tile_h_in, tile_w_in], [tile_n, tile_h_out, tile_w_out])
         print("  Pool2d ERROR: no tiling found. Exiting...")
         os._exit(0)
         return None

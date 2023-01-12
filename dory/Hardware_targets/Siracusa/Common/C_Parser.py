@@ -272,12 +272,10 @@ class C_Parser_Siracusa(Parser_HW_to_C):
         for in_idx in range(self.n_inputs):
             infile = 'input.txt' if self.n_inputs == 1 else f'input_{in_idx}.txt'
             try:
-                x_in = np.loadtxt(os.path.join(self.network_directory, infile), delimiter=',', dtype=np.uint8, usecols=[0])
+                x_in = np.loadtxt(os.path.join(self.network_directory, infile), delimiter=',', dtype=np.int16, usecols=[0])
             except FileNotFoundError:
                 print(f"========= WARNING ==========\nInput file {os.path.join(self.network_directory, 'input.txt')} not found; generating random inputs!")
-                x_in = np.random.randint(low=0, high=2*8,
-                                         size=self.group * self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
-                                         dtype=np.uint8)
+                x_in = np.random.randint(low=0, high=2*8,size=self.group * self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],dtype=np.int16)
             x_in_l.append(x_in.flatten())
 
         x_in = np.concatenate(x_in_l)
@@ -286,11 +284,16 @@ class C_Parser_Siracusa(Parser_HW_to_C):
         if in_bits != 8:
             x_in = HW_node._compress(x_in, in_bits)
 
-
         temp = x_in
-        input_values = utils.print_test_vector(temp.flatten(), 'char')
+        # input_values = utils.print_test_vector(temp.flatten(), 'char')
+        s = ''
+        for num in temp:
+            if num > 0:
+                s += f"{hex(np.uint8(num))}, "
+            else:
+                s += f"{hex(np.uint8(num+256))}, "
         tk = OrderedDict([])
-        tk['input_values'] = input_values
+        tk['input_values'] = s[:-2]
         tk['dimension'] = len(x_in)
         tk['sdk'] = self.HW_description["software development kit"]["name"]
         root = os.path.dirname(__file__)

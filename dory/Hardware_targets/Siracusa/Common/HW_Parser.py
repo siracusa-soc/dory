@@ -137,12 +137,12 @@ class onnx_manager_Siracusa(Parser_DORY_to_HW):
             memEstimate = (np.prod(node.input_dimensions)*node.input_channels + np.prod(node.output_dimensions)*node.output_channels + np.prod(node.kernel_shape)*node.input_channels*node.output_channels)
 
             # SCHEREMO: MVN2 Hack
-            if memEstimate > 1500000:
-                return False
+            # if memEstimate > 1500000:
+            #     return False
         except:
             return False
 
-        if node.op_type == "BNReluConv" and node.weight_bits == 8 and node.input_activation_bits == 8 and node.input_activation_type == 'uint':
+        if node.op_type == "BNReluConv" and node.weight_bits == 8 and node.input_activation_bits == 8:
             #SCHEREMO: Check if it's a pointwise convolution:
             if node.group == 1 and node.kernel_shape == [1,1]:
                 print("1x1 dense - Offloading to NEUREKA...")

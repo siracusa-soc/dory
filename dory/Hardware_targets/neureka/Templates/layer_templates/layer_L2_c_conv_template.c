@@ -645,7 +645,7 @@ void ${func_name}(
       dory_dma_barrier(&DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
     }
 
-    //print_task(*nnx_task_to_offload);
+    print_task(*nnx_task_to_offload);
     //nnx_run_blocking();
     nnx_run_async();
     nnx_cfg_t cfg = nnx_task_to_offload->cfg;

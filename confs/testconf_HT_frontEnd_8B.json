@@ -4,7 +4,7 @@
     "code reserved space": 150000,
     "input_bits": 8,
     "input_signed": false,
-    "use_wmem": false,
+    "use_wmem": true,
     "offload": true,
     "nnx_dir":"/home/moritzs/PULP/Handtracking/dory/dory/Hardware_targets/neureka/" 
 }
