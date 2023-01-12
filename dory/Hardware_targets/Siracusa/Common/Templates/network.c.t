@@ -285,16 +285,16 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
     // Then offload an entry point, this will get executed on the cluster controller
     cluster_task.stack_size = ${master_stack};
     cluster_task.slave_stack_size = ${slave_stack};
-    //pi_cluster_send_task_to_cl(&cluster_dev, &cluster_task);
+    pi_cluster_send_task_to_cl(&cluster_dev, &cluster_task);
     // closing of the cluster
     // pi_cluster_close(&cluster_dev);
     //Then offload an entry point, this will get executed on the cluster controller
-    pi_cluster_send_task_to_cl_async(&cluster_dev, &cluster_task, &task);
-    while (nb_callback_exec == 0)
-    {
-      pi_yield_polling();
-      //pi_yield();
-    }
+    /* pi_cluster_send_task_to_cl_async(&cluster_dev, &cluster_task, &task); */
+    /* while (nb_callback_exec == 0) */
+    /* { */
+    /*   pi_yield_polling(); */
+    /*   //pi_yield(); */
+    /* } */
     // closing of the cluster
     pi_cluster_close(&cluster_dev);
 % if 'Yes' in performance or 'Perf_final' in verbose_level:
