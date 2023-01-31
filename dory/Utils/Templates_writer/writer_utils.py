@@ -39,7 +39,7 @@ def print_test_vector(x, type_data):
         try:
             np.set_printoptions(
                 threshold=sys.maxsize,
-                formatter={'int': lambda x: hex(np.uint8(x)) if (
+                formatter={'int': lambda x: hex(np.uint8((~x)+1)) if (
                     x < 0) else hex(np.uint8(x)), }
             )
         except TypeError:

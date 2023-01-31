@@ -18,6 +18,7 @@ class TemplateWriter2D_L3(TemplateWriter):
         conv_overlap1 = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
         conv_overlap2 = 2 * (ks[1] // 2) + ks[1] % 2 - 1 - (s[1] - 1)
         self.flag_DW = 1 if node.group > 1 else 0
+        self.prefix = node.prefix
 
         ################## NEED A REWRITING IN THIS TEMPLATE PART ######################
         #### VARIABLE CREATION FOR COMPATIBILITY WITH THE SECTION AFTER ################
@@ -77,10 +78,10 @@ class TemplateWriter2D_L3(TemplateWriter):
         self.n_tile_y = factor_h_out
         self.verbose = False
         if self.padding > 0:
-            self.func_name = [node.name + "_L2", node.name + "_L2_p_t", node.name + "_L2_p_b"]
+            self.func_name = [node.prefix + node.name + "_L2", node.name + "_L2_p_t", node.name + "_L2_p_b"]
         else:
-            self.func_name = [node.name + "_L2"]
-        self.func_name_L3 = node.name
+            self.func_name = [node.prefix + node.name + "_L2"]
+        self.func_name_L3 = node.prefix + node.name
         self.BitIn = ds_x
         self.y_data_size_byte = ds_y
         self.x_data_size_byte = ds_x
@@ -135,10 +136,11 @@ class TemplateWriter2D_L2(TemplateWriter):
         else:
             self.first_layer = 0
         self.sdk = node.HW_description["software development kit"]["name"]
+        self.prefix = node.prefix
         self.number_of_clusters = node.HW_description[
             "number_of_clusters"] if "number_of_clusters" in node.HW_description.keys() else 1
         #self.optional_type = layer_type
-        self.func_name = node.name
+        self.func_name = node.prefix + node.name
         self.flag_DW = 1 if node.group > 1 else 0
         self.optional = node.op_type
         self.FLAG_BATCHNORM = 1 if 'k' in node.constant_names else 0

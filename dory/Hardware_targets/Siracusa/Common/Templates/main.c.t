@@ -22,18 +22,18 @@ n_inputs = DORY_HW_graph[0].n_test_inputs
 single_input = n_inputs==1
 %>\
 % if not l3_supported:
-#include "input.h"
+#include "${prefix}input.h"
 % else:
 #include "mem.h"
 % endif
-#include "network.h"
+#include "${prefix}network.h"
 #include "siracusa_padctrl.h"
 #include "pmsis.h"
 
 % if verbose:
 #define VERBOSE 1
 % endif
-
+    
 % if sdk == 'pulp-sdk':
 unsigned int PMU_set_voltage(unsigned int Voltage, unsigned int CheckFrequencies) {
   return 0;
@@ -89,7 +89,7 @@ int main () {
   ram_read(l2_buffer, ram_input, l2_input_size);
   % endif
 
-      network_run(l2_buffer, ${l2_buffer_size}, l2_buffer, ${"0" if single_input else "exec"}${f", L2_input_h{' + exec * l2_input_size' if not single_input else ''}" if not l3_supported else ""});
+      network_run(l2_buffer, ${l2_buffer_size}, l2_buffer, ${"0" if single_input else "exec"}${f", {prefix}L2_input_h{' + exec * l2_input_size' if not single_input else ''}" if not l3_supported else ""});
 
   % if not single_input:
   }

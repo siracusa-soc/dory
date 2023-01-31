@@ -22,15 +22,15 @@ l3_supported = DORY_HW_graph[0].HW_description['memory']['levels'] > 2
 %>\
 #define DEFINE_CONSTANTS
 % if not l3_supported and files_list != ' ':
-#include "weights.h"
+#include "${prefix}weights.h"
 %endif
 #include "pmsis.h"
-#include "network.h"
+#include "${prefix}network.h"
 #include "directional_allocator.h"
 #include "mem.h"
 #include <string.h>
 % for layer in list_h:
-#include "${layer}"
+#include "${prefix}${layer}"
 % endfor
 
 % if sdk == 'pulp-sdk':
@@ -39,8 +39,10 @@ l3_supported = DORY_HW_graph[0].HW_description['memory']['levels'] > 2
 % endif
 
 % if verbose:
-#define VERBOSE 1
+#define VERBOSE 0
 % endif
+
+    
 static int nb_callback_exec=0;
 
 static void cluster_task_callback(void *arg)
@@ -50,11 +52,11 @@ static void cluster_task_callback(void *arg)
 
 % if 'Yes' in performance or 'Perf_final' in verbose_level:
 static void print_perf(const char *name, const int cycles, const int macs) {
-  float perf = (float) macs / cycles;
+  int32_t perf =  macs / cycles;
   printf("\r\n%s performance:\r\n", name);
   printf("  - num cycles: %d\r\n", cycles);
   printf("  - MACs: %d\r\n", macs );
-  printf("  - MAC/cycle: %g\r\n", perf);
+  printf("  - MAC/cycle: %d\r\n", perf);
   printf("  - n. of Cores: %d\r\n\r\n", NUM_CORES);
 }
 
@@ -70,11 +72,11 @@ static void checksum(const char *name, const uint8_t *d, size_t size, uint32_t s
         printf("OK\r\n");
     else{
         printf("Failed: true [%u] vs. calculated [%u]\r\n", sum_true, sum);
-	printf("Got the following:\r\n");
-	for (int i = 0; i < size; i++){
-	  printf("%u, ", d[i]);
-	}
-	printf("\r\n");
+	/* printf("Got the following:\r\n"); */
+	/* for (int i = 0; i < size; i++){ */
+	/*   printf("%u, ", d[i]); */
+	/* } */
+	/* printf("\r\n"); */
     }
 }
 #endif
@@ -132,9 +134,9 @@ void execute_layer_fork(void *args) {
 % for i, node in enumerate(DORY_HW_graph):
     case ${i}:
       %if hasattr(node, "offloadable") and node.offloadable:
-      ${func_name[i]}(args);
+      ${prefix}${func_name[i]}(args);
       %else:
-      pi_cl_team_fork(NUM_CORES, (void *)${func_name[i]}, args);
+      pi_cl_team_fork(NUM_CORES, (void *)${prefix}${func_name[i]}, args);
       %endif
       break;
 % endfor
@@ -309,7 +311,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
     asm volatile("": : :"memory");
 
 % if 'Yes' in performance:
-    //print_perf(Layers_name[i], perf_cyc, NODEs_MACS[i]);
+    print_perf(Layers_name[i], perf_cyc, NODEs_MACS[i]);
 % endif
 
     // TODO: What error?
@@ -433,7 +435,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
     dir = !dir;
   }
 
-  memcpy(L2_output, l2_final_output, activations_out_size[${len(DORY_HW_graph)-1}]);
+    memcpy(l2_final_output, L2_output, activations_out_size[${len(DORY_HW_graph)-1}]);
 
 
     

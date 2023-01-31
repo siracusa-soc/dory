@@ -28,7 +28,7 @@ import json
 from importlib import import_module
 
 
-def dory_to_c(graph, target, conf, confdir, verbose_level, perf_layer, optional, appdir, n_inputs):
+def dory_to_c(graph, target, conf, confdir, verbose_level, perf_layer, optional, appdir, n_inputs, prefix):
     # Including and running the transformation from DORY IR to DORY HW IR
     onnx_manager = import_module(f'dory.Hardware_targets.{target}.HW_Parser')
     dory_to_dory_hw = onnx_manager.onnx_manager
@@ -37,10 +37,12 @@ def dory_to_c(graph, target, conf, confdir, verbose_level, perf_layer, optional,
     # Deployment of the model on the target architecture
     onnx_manager = import_module(f'dory.Hardware_targets.{target}.C_Parser')
     dory_hw_to_c = onnx_manager.C_Parser
-    dory_hw_to_c(graph, conf, confdir, verbose_level, perf_layer, optional, appdir, n_inputs).full_graph_parsing()
+    _C_Parser = dory_hw_to_c(graph, conf, confdir, verbose_level, perf_layer, optional, appdir, n_inputs, prefix=prefix)
+    _C_Parser.full_graph_parsing()
+
 
 def network_generate(frontend, target, conf_file, verbose_level='Check_all+Perf_final', perf_layer='No', optional='auto',
-                     appdir='./application'):
+                     appdir='./application', prefix=''):
     print(f"Using {frontend} as frontend. Targeting {target} platform. ")
 
     # Reading the json configuration file
@@ -64,7 +66,7 @@ def network_generate(frontend, target, conf_file, verbose_level='Check_all+Perf_
     onnx_to_dory = onnx_manager.onnx_manager
     graph = onnx_to_dory(onnx_file, conf).full_graph_parsing()
 
-    dory_to_c(graph, target, conf, confdir, verbose_level, perf_layer, optional, appdir, n_inputs)
+    dory_to_c(graph, target, conf, confdir, verbose_level, perf_layer, optional, appdir, n_inputs, prefix)
 
 if __name__ == '__main__':
     Frontends = ["NEMO", "Quantlab"]
@@ -84,6 +86,7 @@ if __name__ == '__main__':
     parser.add_argument('--optional', default='mixed-sw',
                         help='auto (based on layer precision, 8bits or mixed-sw), 8bit, mixed-hw, mixed-sw')
     parser.add_argument('--app_dir', default='./application', help='Path to the generated application. Default: ./application')
+    parser.add_argument('--prefix', default='', help='Prefix of the application')
 
     args = parser.parse_args()
-    network_generate(args.frontend, args.hardware_target, args.config_file, args.verbose_level, args.perf_layer, args.optional, args.app_dir)
+    network_generate(args.frontend, args.hardware_target, args.config_file, args.verbose_level, args.perf_layer, args.optional, args.app_dir, args.prefix)

@@ -36,6 +36,7 @@ def print_template_layer_L3(node, tmpl_dir, out_dir):
     conv_overlap2 = 2 * (ks[1] // 2) + ks[1] % 2 - 1 - (s[1] - 1)
     tk = OrderedDict([])
     tk['flag_DW'] = 1 if node.group > 1 else 0
+    tk['prefix'] = node.prefix
 
     ################## NEED A REWRITING IN THIS TEMPLATE PART ######################
     #### VARIABLE CREATION FOR COMPATIBILITY WITH THE SECTION AFTER ################
@@ -94,10 +95,10 @@ def print_template_layer_L3(node, tmpl_dir, out_dir):
     tk['n_tile_y'] = factor_h_out
     tk['verbose'] = False
     if tk['padding'] > 0:
-        tk['func_name'] = [node.name + "_L2", node.name + "_L2_p_t", node.name + "_L2_p_b"]
+        tk['func_name'] = [node.prefix + node.name + "_L2", node.name + "_L2_p_t", node.name + "_L2_p_b"]
     else:
-        tk['func_name'] = [node.name + "_L2"]
-    tk['func_name_L3'] = node.name
+        tk['func_name'] = [node.prefix + node.name + "_L2"]
+    tk['func_name_L3'] = node.prefix + node.name
     tk['BitIn'] = ds_x
     tk['y_data_size_byte'] = ds_y
     tk['x_data_size_byte'] = ds_x
@@ -166,6 +167,7 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     conv_overlap1 = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
     conv_overlap2 = 2 * (ks[1] // 2) + ks[1] % 2 - 1 - (s[1] - 1)
     tk = OrderedDict([])
+    tk['prefix'] = node.prefix
     if (re.search('.0',name_layer)):
         try:
             int(re.search('.0',name_layer).group())
@@ -178,7 +180,7 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     tk['sdk'] = node.HW_description["software development kit"]["name"]
     tk['number_of_clusters'] = node.HW_description["number_of_clusters"] if "number_of_clusters" in node.HW_description.keys() else 1
     tk['optional_type'] = layer_type
-    tk['func_name'] = node.name
+    tk['func_name'] = node.prefix + node.name
     tk['flag_DW'] = 1 if node.group > 1 else 0
     tk['optional'] = node.op_type
     tk['FLAG_BATCHNORM'] = 1 if 'k' in node.constant_names else 0
@@ -457,11 +459,11 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
             tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_addition_template.c"))
 
     s = tmpl.render(verbose_log=l, **tk)
-    save_string = os.path.join(out_dir, 'src', name_layer.replace("h", "c"))
+    save_string = os.path.join(out_dir, 'src', node.prefix + name_layer.replace("h", "c"))
     with open(save_string, "w") as f:
         f.write(s)
     tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_h_template.h"))
     s = tmpl.render(verbose_log=l, **tk)
-    save_string = os.path.join(out_dir, 'inc', name_layer)
+    save_string = os.path.join(out_dir, 'inc', node.prefix + name_layer)
     with open(save_string, "w") as f:
         f.write(s)

@@ -26,9 +26,9 @@
 % for i in range(len(weights_vectors)):
 % if weights_dimensions[i] > 0:
 % if sdk == 'gap_sdk':
-L2_DATA uint8_t Weights_${weights_names[i]}[${weights_dimensions[i]}] = {
+L2_DATA uint8_t ${prefix}Weights_${weights_names[i]}[${weights_dimensions[i]}] = {
 % else:
-PI_L2 uint8_t Weights_${weights_names[i]}[${weights_dimensions[i]}] = {
+PI_L2 uint8_t ${prefix}Weights_${weights_names[i]}[${weights_dimensions[i]}] = {
 % endif
 ${weights_vectors[i]}};
 % endif

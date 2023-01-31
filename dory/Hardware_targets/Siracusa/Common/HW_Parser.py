@@ -133,14 +133,14 @@ class onnx_manager_Siracusa(Parser_DORY_to_HW):
     @staticmethod
     def is_offloadable(node: Layer_node) -> bool:
         #SCHEREMO: Check if it's an 8-Bit x 8-Bit or lower convolution
-        try:
-            memEstimate = (np.prod(node.input_dimensions)*node.input_channels + np.prod(node.output_dimensions)*node.output_channels + np.prod(node.kernel_shape)*node.input_channels*node.output_channels)
+        # try:
+        #     memEstimate = (np.prod(node.input_dimensions)*node.input_channels + np.prod(node.output_dimensions)*node.output_channels + np.prod(node.kernel_shape)*node.input_channels*node.output_channels)
 
-            # SCHEREMO: MVN2 Hack
-            # if memEstimate > 1500000:
-            #     return False
-        except:
-            return False
+        #     # SCHEREMO: MVN2 Hack
+        #     # if memEstimate > 1500000:
+        #     #     return False
+        # except:
+        #     return False
 
         if node.op_type == "BNReluConv" and node.weight_bits == 8 and node.input_activation_bits == 8:
             #SCHEREMO: Check if it's a pointwise convolution:
@@ -148,14 +148,13 @@ class onnx_manager_Siracusa(Parser_DORY_to_HW):
                 print("1x1 dense - Offloading to NEUREKA...")
                 return True
             #SCHEREMO: Check if it's a dense 3x3 convolution:
-            elif node.input_channels == node.output_channels and node.group == 1 and node.kernel_shape == [3,3]:
+            elif node.group == 1 and node.kernel_shape == [3,3]:
                 print("3x3 dense - Offloading to NEUREKA...")
                 return True
             elif node.input_channels == node.output_channels and node.group == node.input_channels and node.kernel_shape == [3,3]: #and node.input_dimensions[0] < 8:
                 #print("Not offloading to NEUREKA...")
                 print("3x3 dw - Offloading to NEUREKA...")
                 return True
-
         return False
 
 
@@ -166,7 +165,7 @@ class onnx_manager_Siracusa(Parser_DORY_to_HW):
         if 'offload' in self.config_file and self.config_file['offload'] == True:
             print("Offloading to N-EUREKA")
             for idx, node in enumerate(self.DORY_Graph):
-                if (self.HW_description['memory']['levels']>2 and idx==0):
+                if (self.HW_description['memory']['levels'] > 2 and idx==0):
                     node.offloadable = False
                 else:
                     node.offloadable  = onnx_manager_Siracusa.is_offloadable(node)

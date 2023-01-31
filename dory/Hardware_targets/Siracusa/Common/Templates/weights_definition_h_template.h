@@ -22,7 +22,7 @@
 #define __WEIGHTS_DEFINITION_H__
 % for i in range(len(weights_vectors)):
 % if weights_dimensions[i] > 0:
-extern uint8_t Weights_${weights_names[i]}[${weights_dimensions[i]}];
+extern uint8_t ${prefix}Weights_${weights_names[i]}[${weights_dimensions[i]}];
 % endif
 % endfor
 #endif

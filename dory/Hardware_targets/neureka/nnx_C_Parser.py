@@ -255,10 +255,10 @@ class nnx_C_Parser(Parser_HW_to_C):
                     weightstr_h += f"extern unsigned char {node.name}_{const}[{len(val)}];\r\n"
             weightstr_h += f"\r\n#endif"
 
-            filepath = os.path.join(self.app_directory, 'src', node.name + "_weights.c")
+            filepath = os.path.join(self.app_directory, 'src', node.prefix + node.name + "_weights.c")
             with open(filepath, 'w') as file:
                 file.write(weightstr)
 
-            filepath = os.path.join(self.app_directory, 'inc', node.name + "_weights.h")
+            filepath = os.path.join(self.app_directory, 'inc', node.prefix + node.name + "_weights.h")
             with open(filepath, 'w') as file:
                 file.write(weightstr_h)

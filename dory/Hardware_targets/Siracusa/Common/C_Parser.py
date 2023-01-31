@@ -31,7 +31,7 @@ import dory.Utils.Templates_writer.writer_utils as utils
 
 class C_Parser_Siracusa(Parser_HW_to_C):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, config_file, config_file_dir, verbose_level, perf_layer, precision_library, app_directory, n_inputs=1):
+    def __init__(self, graph, config_file, config_file_dir, verbose_level, perf_layer, precision_library, app_directory, n_inputs=1, prefix=''):
 
         file_path = self.get_file_path()
         with open(os.path.join(file_path, "HW_description.json")) as f:
@@ -39,7 +39,7 @@ class C_Parser_Siracusa(Parser_HW_to_C):
         self.precision_library = precision_library
         self.source_Constant_bits_library = config_file["BNRelu_bits"]
         self.config_file = config_file
-        super().__init__(graph, os.path.join(config_file_dir, os.path.dirname(config_file["onnx_file"])), HW_description, verbose_level, perf_layer, "Makefile", app_directory, n_inputs)
+        super().__init__(graph, os.path.join(config_file_dir, os.path.dirname(config_file["onnx_file"])), HW_description, verbose_level, perf_layer, "Makefile", app_directory, n_inputs, prefix)
         self.acc = Neureka()
         try:
             db = HW_description['double_buffering']
@@ -159,6 +159,7 @@ class C_Parser_Siracusa(Parser_HW_to_C):
         n_memory_levels = self.HW_description['memory']['levels']
 
         for i, node in enumerate(self.HWgraph):
+            node.prefix = self.prefix
             if not hasattr(node, "offloadable") or not node.offloadable:
                 self.map_layer_to_C_file(node, n_memory_levels, tmpl_dir, out_dir)
             else:
@@ -189,10 +190,10 @@ class C_Parser_Siracusa(Parser_HW_to_C):
                 weights += bytearray([0] * (4 - len(weights) % 4))
 
             weightstr = ''
-            weightstr += f"#include \"{node.name}_weights.h\"\r\n"
+            weightstr += f"#include \"{node.prefix}{node.name}_weights.h\"\r\n"
             weightstr += f"#include \"pmsis.h\"\r\n"
             weightstr += '__attribute__ ((section(".weightmem_sram"))) '
-            weightstr += f"unsigned char {node.name}_weights[{len(weights)}] = "
+            weightstr += f"unsigned char {node.prefix}{node.name}_weights[{len(weights)}] = "
             weightstr += "{"
             weightstr += ", ".join("0x"+format(x, '02x') for x in weights)
             weightstr += "};\r\n"
@@ -201,25 +202,25 @@ class C_Parser_Siracusa(Parser_HW_to_C):
                 if const != 0:
                     val = bytes(getattr(node,const)['value'])
                     weightstr += 'PI_L2 '
-                    weightstr += f"unsigned char {node.name}_{const}[{len(val)}] = "
+                    weightstr += f"unsigned char {node.prefix}{node.name}_{const}[{len(val)}] = "
                     weightstr += "{"
                     weightstr += ", ".join("0x"+format(x, '02x') for x in val)
                     weightstr += "};\r\n"
 
-            weightstr_h = f"#ifndef __INCLUDE_GUARD_{node.name}\r\n"
-            weightstr_h += f"#define __INCLUDE_GUARD_{node.name}\r\n"
-            weightstr_h += f"extern unsigned char {node.name}_weights[{len(weights)}];\r\n"
+            weightstr_h = f"#ifndef __INCLUDE_GUARD_{node.prefix}{node.name}\r\n"
+            weightstr_h += f"#define __INCLUDE_GUARD_{node.prefix}{node.name}\r\n"
+            weightstr_h += f"extern unsigned char {node.prefix}{node.name}_weights[{len(weights)}];\r\n"
             for const in constants[1:]:
                 if const != 0:
                     val = bytes(getattr(node,const)['value'])
-                    weightstr_h += f"extern unsigned char {node.name}_{const}[{len(val)}];\r\n"
+                    weightstr_h += f"extern unsigned char {node.prefix}{node.name}_{const}[{len(val)}];\r\n"
             weightstr_h += f"\r\n#endif"
 
-            filepath = os.path.join(self.app_directory, 'src', node.name + "_weights.c")
+            filepath = os.path.join(self.app_directory, 'src', node.prefix + node.name + "_weights.c")
             with open(filepath, 'w') as file:
                 file.write(weightstr)
 
-            filepath = os.path.join(self.app_directory, 'inc', node.name + "_weights.h")
+            filepath = os.path.join(self.app_directory, 'inc', node.prefix + node.name + "_weights.h")
             with open(filepath, 'w') as file:
                 file.write(weightstr_h)
         else:
@@ -250,16 +251,17 @@ class C_Parser_Siracusa(Parser_HW_to_C):
             tk['weights_vectors'] = self.weights_vectors
             tk['weights_dimensions'] = self.weights_dimensions
             tk['DORY_HW_graph'] = self.HWgraph
+            tk['prefix'] = node.prefix
             tk['sdk'] = node.HW_description["software development kit"]["name"]
             root = os.path.dirname(__file__)
             tmpl = Template(filename=os.path.join(root, "Templates/weights_h_template.h"))
             s = tmpl.render(**tk)
-            save_string = os.path.join(self.inc_dir, 'weights.h')
+            save_string = os.path.join(self.inc_dir, f'{node.prefix}weights.h')
             with open(save_string, "w") as f:
                 f.write(s)
             tmpl = Template(filename=os.path.join(root, "Templates/weights_definition_h_template.h"))
             s = tmpl.render(**tk)
-            save_string = os.path.join(self.inc_dir, 'weights_definition.h')
+            save_string = os.path.join(self.inc_dir, f'{node.prefix}weights_definition.h')
             with open(save_string, "w") as f:
                 f.write(s)
 
@@ -294,11 +296,12 @@ class C_Parser_Siracusa(Parser_HW_to_C):
                 s += f"{hex(np.uint8(num+256))}, "
         tk = OrderedDict([])
         tk['input_values'] = s[:-2]
+        tk['prefix'] = self.prefix
         tk['dimension'] = len(x_in)
         tk['sdk'] = self.HW_description["software development kit"]["name"]
         root = os.path.dirname(__file__)
         tmpl = Template(filename=os.path.join(root, "Templates/input_h_template.h"))
         s = tmpl.render(**tk)
-        save_string = os.path.join(self.inc_dir, 'input.h')
+        save_string = os.path.join(self.inc_dir, f'{self.prefix}input.h')
         with open(save_string, "w") as f:
             f.write(s)

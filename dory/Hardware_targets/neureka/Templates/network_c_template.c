@@ -33,7 +33,7 @@
 % endif
 #define FLASH_BUFF_SIZE 128
 % if verbose:
-#define VERBOSE 1
+#define VERBOSE 0
 % endif
 
 static uint8_t flashBuffer[FLASH_BUFF_SIZE];

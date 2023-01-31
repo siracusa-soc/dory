@@ -21,7 +21,7 @@
 
 #include "${func_name}.h"
 #include "pulp_nnx.h"
-#include "network.h"
+#include "${prefix}network.h"
 #include "dory_get_tile.h"
 #include "dory_dma.h"
 
@@ -546,11 +546,7 @@ void ${func_name}(
     %endif
     
     nnx_task_to_offload->infeat_ptr = x_tile_ptr;
-    #ifdef IO_UART
     nnx_task_to_offload->weights_ptr = w_tile_ptr - 0x10400000;
-    #else
-    nnx_task_to_offload->weights_ptr = w_tile_ptr;
-    #endif
 % if FLAG_BATCHNORM == 1:
     nnx_task_to_offload->scale_ptr = scale_tile_ptr;
     nnx_task_to_offload->scale_bias_ptr = bias_tile_ptr;
@@ -645,7 +641,7 @@ void ${func_name}(
       dory_dma_barrier(&DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
     }
 
-    print_task(*nnx_task_to_offload);
+    //print_task(*nnx_task_to_offload);
     //nnx_run_blocking();
     nnx_run_async();
     nnx_cfg_t cfg = nnx_task_to_offload->cfg;

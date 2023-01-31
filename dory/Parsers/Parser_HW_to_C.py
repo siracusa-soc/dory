@@ -31,7 +31,7 @@ from dory.Parsers.HW_node import HW_node
 
 class Parser_HW_to_C:
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, network_directory, HW_description, verbose_level, perf_layer, save_string, app_directory, n_inputs = 1):
+    def __init__(self, graph, network_directory, HW_description, verbose_level, perf_layer, save_string, app_directory, n_inputs = 1, prefix=""):
         self.HWgraph = graph
         self.HW_description = HW_description
         self.verbose_level = verbose_level
@@ -43,7 +43,11 @@ class Parser_HW_to_C:
         self.src_dir_rel = "src"
         self.hex_dir_rel = "hex"
         self.n_inputs = n_inputs
-
+        # if prefix != "":
+        #     self.prefix = prefix + "_"
+        # else:
+        #     self.prefix = ""
+        self.prefix = prefix + "_"
 
     def adding_numbers_to_layers(self):
         for i, node in enumerate(self.HWgraph):
@@ -61,7 +65,8 @@ class Parser_HW_to_C:
             self.perf_layer,
             self.app_directory,
             self.inc_dir_rel,
-            self.src_dir_rel)
+            self.src_dir_rel,
+            prefix=self.prefix)
 
     def mapping_makefile(self):
         print("\nGenerating the Makefile.")

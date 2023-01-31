@@ -31,6 +31,7 @@ from dory.Utils.DORY_utils import Printer
 class Parser_DORY_to_HW:
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
     def __init__(self, graph, rules, Pattern_rewriter, supported_nodes, HW_description, network_directory, config_file, Tiler, n_inputs=1):
+        print(supported_nodes)
         self.supported_nodes = supported_nodes
         self.DORY_Graph = graph
         self.Printer_Frontend = Printer("logs/HW_related")

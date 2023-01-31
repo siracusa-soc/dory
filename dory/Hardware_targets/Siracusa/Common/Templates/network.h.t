@@ -17,8 +17,15 @@
  * limitations under the License. 
  */
 
-#ifndef __NETWORK_H__
-#define __NETWORK_H__
+#ifndef __${prefix}NETWORK_H__
+#define __${prefix}NETWORK_H__
+
+% if prefix != "":
+// SCHEREMO: Let the preprocessor mangle for us...
+#define execute_layer_fork ${prefix}execute_layer_fork
+#define network_run ${prefix}network_run
+#define layer_args_t ${prefix}layer_args_t
+% endif
 
 % if sdk == 'gap_sdk':
 #include "pulp.h"
@@ -28,13 +35,13 @@
    single_input = n_inputs==1
 %>\
    % if not l3_supported and files_list != ' ':
-#include "weights_definition.h"
+#include "${prefix}weights_definition.h"
 % endif
 #include <stddef.h>
 
 %for node in DORY_HW_graph:
    %if hasattr(node, "offloadable") and node.offloadable and hasattr(node, "use_wmem") and node.use_wmem:
-#include "${node.name}_weights.h"
+#include "${prefix}${node.name}_weights.h"
    %endif
 %endfor
    
@@ -78,7 +85,7 @@ static int layers_pointers[${len(DORY_HW_graph)}];
 % endif
 static char * Layers_name[${len(DORY_HW_graph)}] = {\
 % for node in DORY_HW_graph:
-"${node.name}"${'' if loop.last else ', '}\
+"${prefix}${node.name}"${'' if loop.last else ', '}\
 % endfor
 };
 % if l3_supported:
@@ -114,9 +121,9 @@ static int allocate_layer[${len(DORY_HW_graph)}] = {\
 static char *Weights_name[${len(DORY_HW_graph)}] = {\
 % for i in range(len(DORY_HW_graph)):
 % if (not (hasattr(DORY_HW_graph[i], "offloadable") and DORY_HW_graph[i].offloadable and hasattr(DORY_HW_graph[i], "use_wmem") and DORY_HW_graph[i].use_wmem)) and( 'Conv' in DORY_HW_graph[i].name or 'FullyConnected' in DORY_HW_graph[i].name):
-Weights_${DORY_HW_graph[i].name}${'' if loop.last else ', '}\
+${prefix}Weights_${DORY_HW_graph[i].name}${'' if loop.last else ', '} \
 % elif (hasattr(DORY_HW_graph[i], "offloadable") and DORY_HW_graph[i].offloadable and hasattr(DORY_HW_graph[i], "use_wmem") and DORY_HW_graph[i].use_wmem) and( 'Conv' in DORY_HW_graph[i].name or 'FullyConnected' in DORY_HW_graph[i].name):
-${DORY_HW_graph[i].name}_weights${'' if loop.last else ', '}\
+${prefix}${DORY_HW_graph[i].name}_weights${'' if loop.last else ', '}\
 % else:
 "None"${'' if loop.last else ', '}\
 % endif
@@ -230,7 +237,7 @@ static int layer_with_weights[${len(DORY_HW_graph)}] = {\
 static void* layer_wmem_ptr[${len(DORY_HW_graph)}] = {\
 % for node in DORY_HW_graph:
 % if hasattr(node, "offloadable") and node.offloadable and hasattr(node, "use_wmem") and node.use_wmem:
-${node.name}_weights${'' if loop.last else ', '}\
+${prefix}${node.name}_weights${'' if loop.last else ', '}\
 % else:
 NULL${'' if loop.last else ', '}\
 % endif

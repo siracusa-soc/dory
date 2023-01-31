@@ -112,7 +112,7 @@ void dory_dma_memcpy_3d_async(DMA_copy *copy) {
     };
     mchan_transfer_push_2d(trans);
 #ifdef ALWAYS_BLOCK_DMA_TRANSFERS // needed on GAP8 board
-    dory_dma_barrier(copy);
+    //dory_dma_barrier(copy);
 #endif
     loc += size_2d;
     ext += copy->stride_2d;

@@ -22,8 +22,8 @@ APP = main
 APP_SRCS := $(wildcard src/*.c)
 # -O2 with -fno-indirect-inlining is just as fast as -O3 and reduces code size considerably
 # by not inlining of small functions in the managemengt code
-APP_CFLAGS += -DNUM_CORES=$(CORE) -Iinc -O2 -fno-indirect-inlining -w -g3
-APP_LDFLAGS += -lm -Wl,--print-memory-usage
+APP_CFLAGS += -DNUM_CORES=$(CORE) -Iinc -O3  -w -flto
+APP_LDFLAGS += -lm -Wl,--print-memory-usage -flto
 FLASH_TYPE ?= HYPERFLASH
 RAM_TYPE ?= HYPERRAM
 
