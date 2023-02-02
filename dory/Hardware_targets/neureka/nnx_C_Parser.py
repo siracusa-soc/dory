@@ -76,7 +76,6 @@ class nnx_C_Parser(Parser_HW_to_C):
         tmpl_files = ['layer_L2_h_template.h', 'layer_L2_c_conv_template.c']
         tmpl_files = [os.path.join(tmpl_dir, tmpl_file) for tmpl_file in tmpl_files]
 
-        #import IPython; IPython.embed()
         tmpl_writer.write(tmpl_files, out_dir)
 
     def mapping_layers_to_C_files(self):
@@ -206,8 +205,10 @@ class nnx_C_Parser(Parser_HW_to_C):
         return tmpl_writer
 
     def create_hex_weight(self, node):
-        # if not hasattr(node, "offloadable") or not node.offloadable:
+        # if not hasattr(node, "offloadable") or not node.offloadable
+
         super().create_hex_weight(node)
+
         if self.config_file["use_wmem"]:
             constants = [0, 0, 0, 0]
             for name in node.constant_names:

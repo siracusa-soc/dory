@@ -170,6 +170,7 @@ class C_Parser_Siracusa(Parser_HW_to_C):
         if (node.HW_description['memory']['levels'] > 2) and (not hasattr(node, "offloadable") or not node.offloadable):
             super().create_hex_weight(node)
         elif hasattr(node, "offloadable") and node.offloadable:
+
             constants = [0, 0, 0, 0]
             for name in node.constant_names:
                 if "weight" in name:

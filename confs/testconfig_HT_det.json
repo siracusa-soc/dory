@@ -1,0 +1,11 @@
+{
+    "BNRelu_bits": 32,
+    "onnx_file": "../../quant/doryStimuli_det/QL_testnet.onnx_ql_integerized.onnx",
+    "code reserved space": 260000,
+    "input_bits": 8,
+    "input_signed": false,
+    "use_wmem": true,
+    "offload": true,
+    "nnx_dir":"/home/moritzs/PULP/Handtracking/dory/dory/Hardware_targets/neureka/" 
+}
+

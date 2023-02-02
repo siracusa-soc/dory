@@ -93,6 +93,7 @@ class Parser_HW_to_C:
                 os.system('cp -L "{}" {}'.format(file_to_copy, self.inc_dir))
 
     def create_hex_weight(self, node):
+
         constants = [0, 0, 0, 0]
         for name in node.constant_names:
             if "weight" in name:
