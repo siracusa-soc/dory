@@ -216,8 +216,8 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
         n_out  = node.tiling_dimensions["L2"]["output_dimensions"][0]
     h_out      = node.tiling_dimensions["L2"]["output_dimensions"][1]
     w_out      = node.tiling_dimensions["L2"]["output_dimensions"][2]
-    tile_n_out = node.tiling_dimensions["L1"]["output_dimensions"][0]
     tile_h_out = node.tiling_dimensions["L1"]["output_dimensions"][1]
+    tile_n_out = node.tiling_dimensions["L1"]["output_dimensions"][0]
     tile_w_out = node.tiling_dimensions["L1"]["output_dimensions"][2]
 
     fs1        = node.kernel_shape[0]

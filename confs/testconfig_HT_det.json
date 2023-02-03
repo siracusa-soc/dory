@@ -1,6 +1,6 @@
 {
     "BNRelu_bits": 32,
-    "onnx_file": "../../quant/doryStimuli_det/QL_testnet.onnx_ql_integerized.onnx",
+    "onnx_file": "../../quant/handDetection_det/network.onnx_ql_integerized.onnx",
     "code reserved space": 260000,
     "input_bits": 8,
     "input_signed": false,
