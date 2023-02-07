@@ -148,14 +148,14 @@ class HW_node(DORY_node):
         else:
             return
         if weight_name in self.__dict__:
-            if self.weight_bits < 8 and self.group > 1:
+            if self.weight_bits < 8 and self.group > 1 and False:
                 self.__dict__[weight_name]["value"] = np.asarray(self.__dict__[weight_name]["value"])
                 self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].reshape(self.__dict__[weight_name]["value"].shape[0]//2,2,self.__dict__[weight_name]["value"].shape[1],self.__dict__[weight_name]["value"].shape[2],self.__dict__[weight_name]["value"].shape[3]).transpose(0,2,3,1,4).flatten()
             else:
                 self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].flatten()
             # self.__dict__[weight_name+"_raw"] = self.__dict__[weight_name]
             self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].astype(np.uint8)
-            if self.weight_bits != 8:
+            if self.weight_bits != 8 and not self.offloadable:
                 self.__dict__[weight_name]["value"] = self._compress(self.__dict__[weight_name]["value"], self.weight_bits)
             self.check_sum_w += sum(self.__dict__[weight_name]["value"])
 

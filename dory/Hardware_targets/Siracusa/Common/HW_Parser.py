@@ -142,7 +142,7 @@ class onnx_manager_Siracusa(Parser_DORY_to_HW):
         # except:
         #     return False
 
-        if node.op_type == "BNReluConv" and node.weight_bits == 8 and node.input_activation_bits == 8:
+        if node.op_type == "BNReluConv" and node.input_activation_bits == 8:
             #SCHEREMO: Check if it's a pointwise convolution:
             if node.group == 1 and node.kernel_shape == [1,1]:
                 print("1x1 dense - Offloading to NEUREKA...")

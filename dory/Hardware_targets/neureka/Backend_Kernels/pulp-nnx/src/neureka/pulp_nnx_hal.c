@@ -222,8 +222,8 @@ nnx_error_code nnx_conv_1x1_update_dims(nnx_cfg_t *cfg,
   cfg->output_stride = output_stride;
 
   const nnx_stride_t weights_stride = {
-    .d0 = weight_d0_stride * qw,
-    .d1 = weight_d0_stride * qw * num_Ki,
+    .d0 = weight_d0_stride * 8,
+    .d1 = weight_d0_stride * 8 * num_Ki,
     .d2 = 0 // Unused
   };
   cfg->weights_stride = weights_stride;
@@ -406,8 +406,8 @@ nnx_error_code nnx_conv_3x3_dw_update_dims(nnx_cfg_t *cfg,
   const nnx_stride_t input_stride = {
     .d0 = k_out,
     .d1 = k_out * (w_out + 2 - PADDING_RIGHT(cfg->padding) - PADDING_LEFT(cfg->padding)),
-    .d2 = 0
-    //.d2 = k_in * 3 * 3 //copying arpan
+    //.d2 = 0
+    .d2 = 0x980 //copying arpan
   };
   cfg->input_stride = input_stride;
 
@@ -420,7 +420,7 @@ nnx_error_code nnx_conv_3x3_dw_update_dims(nnx_cfg_t *cfg,
 
   const nnx_stride_t weights_stride = {
     //.d0 = NEUREKA_FILTER_SIZE * NEUREKA_FILTER_SIZE * weight_d0_stride,
-    .d0 = weight_d0_stride * 8,
+    .d0 = NEUREKA_WEIGHT_D0_STRIDE_MODE8_3x3,
     .d1 = 0,
     .d2 = 0  // Unused
   };
