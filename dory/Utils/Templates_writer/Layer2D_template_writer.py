@@ -445,6 +445,17 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     tk['conv1d'] = node.conv1d
     tk['dilations'] = node.dilations
 
+    import json
+    import copy
+
+    _tk = copy.deepcopy(tk)
+    del _tk['node']
+    jsonDump = json.dumps(_tk)
+    if not os.path.exists(os.path.join(out_dir, 'jsonDump')):
+        os.mkdir(os.path.join(out_dir, 'jsonDump'))
+    with open(os.path.join(out_dir, 'jsonDump', name_layer.replace(".h", '.json')), "w") as f:
+        f.write(jsonDump)
+
     if "Addition" not in node.name and "Pool" not in node.name:
         tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_conv_template.c"))
     elif "Pool" in node.name:

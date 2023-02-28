@@ -8,6 +8,16 @@ class TemplateWriter:
 
     # Assumes tmpl_files is a list of 2 files where one ends with .h and the other .c
     def write(self, tmpl_files, out_dir):
+
+        import json
+        import os
+        jsonDump = json.dumps(self.__dict__)
+        if not os.path.exists(os.path.join(out_dir, 'jsonDump')):
+            os.mkdir(os.path.join(out_dir, 'jsonDump'))
+        with open(os.path.join(out_dir, 'jsonDump', self.func_name + '.json'), "w") as f:
+            f.write(jsonDump)
+
+
         for tmpl_file in tmpl_files:
             tmpl_file_name = os.path.basename(tmpl_file)
             if tmpl_file_name.endswith('.h'):
