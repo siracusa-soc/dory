@@ -53,6 +53,10 @@ void static print_dma(DMA_copy* dma){
 
 #define MIN(a,b) (a < b ? a : b)
 
+#ifdef RUNTIMEMEASUREMENT
+static uint32_t cycles, tot_cycles, tile_cycles = 0;
+#endif
+
 // DMA_Y_CONTEXT_SIZE
 // At least NNX_CONTEXT_SIZE + 1 DMA_copy_y configurations are needed because output
 // is always 2 phases late, so there are 2 configurations for previous stages
@@ -64,6 +68,9 @@ void static print_dma(DMA_copy* dma){
 #define DMA_Y_INDEX(n) (n & DMA_Y_MASK)
 
 #define DMA_RESHUFFLE 1
+
+static int x_t_start, x_t_end = 0;
+static uint32_t startCycles, endCycles, STARTED = 0;
 
 static int increment_i_dma_y(int i) {
   return (i + 1) != DMA_Y_CONTEXT_SIZE ? i + 1 : 0; 
@@ -391,7 +398,7 @@ void ${func_name}(
 
   for (int i_tile = 0; i_tile < total_tiles; i_tile++)
   {
-      NEUREKA_CG_ENABLE();
+    //NEUREKA_CG_ENABLE();
       
 //   /$$$$$$   /$$$$$$  /$$   /$$ /$$$$$$$$ /$$$$$$  /$$$$$$  /$$   /$$ /$$$$$$$  /$$$$$$$$
 //  /$$__  $$ /$$__  $$| $$$ | $$| $$_____/|_  $$_/ /$$__  $$| $$  | $$| $$__  $$| $$_____/
@@ -574,6 +581,10 @@ void ${func_name}(
     
     if (is_load_x) {
       dory_dma_memcpy_async(&DMA_copy_x);
+      if (STARTED == 0){
+	startCycles = pi_perf_cl_read(PI_PERF_CYCLES);
+	STARTED=1;
+      }
     }    if (is_load_w) {
       % if not use_wmem:
       dory_dma_memcpy_async(&DMA_copy_W);
@@ -642,8 +653,16 @@ void ${func_name}(
     }
 
     //print_task(*nnx_task_to_offload);
-    //nnx_run_blocking();
+#ifdef RUNTIMEMEASUREMENT
+    cycles = pi_perf_read(PI_PERF_CYCLES);
+    nnx_run_blocking();
+    tile_cycles = pi_perf_read(PI_PERF_CYCLES) - cycles;
+    printf("\r\nRUNTIMEMEASUREMENT ${func_name} Tile %u: %u \r\n", i_tile, tile_cycles);
+    tot_cycles += tile_cycles;
+#endif
+#ifndef RUNTIMEMEASUREMENT
     nnx_run_async();
+#endif
     nnx_cfg_t cfg = nnx_task_to_offload->cfg;
     /* printf("in feat d0:\t\t %08x\r\n", cfg.input_stride.d0); */
     /* printf("in feat d1:\t\t %08x\r\n", cfg.input_stride.d1); */
@@ -838,6 +857,13 @@ void ${func_name}(
     dory_dma_memcpy_async(&DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
   }
 
+  endCycles = pi_perf_cl_read(PI_PERF_CYCLES);
+  ${prefix}NEUREKA_CYCLES += endCycles - startCycles;
+
+#ifdef RUNTIMEMEASUREMENT
+  printf("\r\nRUNTIMEMEASUREMENT ${func_name}: %u \r\n", tot_cycles);
+#endif
+  
 % if not TEST:
   // wait for final write
   dory_dma_barrier(&DMA_copy_y[DMA_Y_INDEX(total_tiles-1)]);
@@ -845,6 +871,6 @@ void ${func_name}(
   
 % endif
   // clear NNX for cleanup
-    NEUREKA_CG_DISABLE();
-  nnx_soft_clear();
+    //NEUREKA_CG_DISABLE();
+    //nnx_soft_clear();
 }
