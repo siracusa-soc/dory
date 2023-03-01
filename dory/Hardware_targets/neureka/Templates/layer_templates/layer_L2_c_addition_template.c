@@ -20,11 +20,12 @@
 ${verbose_log}
 
 #include "${func_name}.h"
+#include "${prefix}network.h"
 % if ULTRA_VERBOSE:
 #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
 % endif
 
-
+static uint32_t startCycles, endCycles, STARTED;
 
 
 void ${func_name}(
@@ -42,7 +43,9 @@ void ${func_name}(
   unsigned int hyperram =(unsigned int)  real_arg[8];
   unsigned int out_mult_in =(unsigned int)  real_arg[9];
   unsigned int out_shift_in = (unsigned int) real_arg[10];
-
+  startCycles = pi_perf_cl_read(PI_PERF_CYCLES);
+  
+  
   int last_nof_exec;
   int last_nif_exec;
   int last_h_exec;
@@ -271,4 +274,6 @@ void ${func_name}(
   dory_dma_barrier(DMA_copy_y);
   dory_dma_deallocate(dory_dma_channel);
 % endif
+    endCycles =	pi_perf_cl_read(PI_PERF_CYCLES);
+  ${prefix}ADD_CYCLES += endCycles - startCycles;
 }

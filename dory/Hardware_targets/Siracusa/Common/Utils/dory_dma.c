@@ -29,6 +29,9 @@
 
 #define MIN(a,b) ((a)<(b)?(a):(b))
 
+static uint32_t tot_cycles = 0;
+static uint32_t cycles = 0;
+
 void dory_dma_memcpy_hwc_to_chw(DMA_copy *copy){
   int core_id = pi_core_id();
   int Log2Core = log2(NUM_CORES);

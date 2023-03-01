@@ -28,6 +28,10 @@
 
 static int qw, weight_d0_stride, outbytes;
 
+static uint32_t tot_cycles = 0;
+static uint32_t cycles = 0;
+
+
 // TODO For all the following functions we use __builtin_pulp_OffsetedWrite and
 // __builtin_pulp_OffsetedRead instead of classic load/store because otherwise
 // the compiler is not able to correctly factorize the NEUREKA base in case several
@@ -84,7 +88,9 @@ void nnx_soft_clear() {
 
 int nnx_acquire() {
   int job_id = -1;
+  /* uint32_t _cycles = pi_perf_cl_read(PI_PERF_CYCLES); */
   NEUREKA_BARRIER_ACQUIRE(job_id);
+  /* cycles += pi_perf_cl_read(PI_PERF_CYCLES) - _cycles; */
   return job_id;
 }
 
@@ -120,7 +126,16 @@ void nnx_busywait() {
 }
 
 void nnx_wait_empty() {
+  //uint32_t _cycles = pi_perf_cl_read(PI_PERF_CYCLES);
   while(!nnx_empty()) NEUREKA_BARRIER_NOSTATUS();
+  /* pi_perf_cl_stop(); */
+  /* cycles += pi_perf_cl_read(PI_PERF_CYCLES) - _cycles; */
+  /* tot_cycles += cycles; */
+  /* printf("NEUREKA stall cycles: %u\r\n", cycles); */
+  /* cycles = 0; */
+  /* printf("Total NEUREKA stall cycles: %u\r\n", tot_cycles); */
+  /* pi_perf_cl_start(); */
+  
 }
 
 void nnx_wait_not_full() {

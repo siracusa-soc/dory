@@ -42,7 +42,8 @@ l3_supported = DORY_HW_graph[0].HW_description['memory']['levels'] > 2
 #define VERBOSE 0
 % endif
 
-    
+    uint32_t ${prefix}NEUREKA_CYCLES = 0;
+uint32_t ${prefix}ADD_CYCLES = 0;    
 static int nb_callback_exec=0;
 
 static void cluster_task_callback(void *arg)
@@ -447,9 +448,11 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
 /* ---------------------------------- */
 /* -------- SECTION 3 BEGIN --------- */
 /* ---------------------------------- */
-  
+    
 % if 'Perf_final' in verbose_level:
   print_perf("Final", cycle_network_execution, ${MACs});
+    printf("NEUREKA: %u cycles\r\n", ${prefix}NEUREKA_CYCLES);
+    printf("ADD: %u cycles\r\n", ${prefix}ADD_CYCLES);
 % endif
 
 /* ---------------------------------- */

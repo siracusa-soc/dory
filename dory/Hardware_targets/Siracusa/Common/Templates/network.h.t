@@ -20,6 +20,8 @@
 #ifndef __${prefix}NETWORK_H__
 #define __${prefix}NETWORK_H__
 
+#include <stdint.h>
+
 % if prefix != "":
 // SCHEREMO: Let the preprocessor mangle for us...
 #define execute_layer_fork ${prefix}execute_layer_fork
@@ -65,6 +67,9 @@ typedef struct {
     unsigned int out_shift;
     unsigned int layer_id;
 } layer_args_t;
+
+extern uint32_t ${prefix}NEUREKA_CYCLES;
+extern uint32_t ${prefix}ADD_CYCLES;
 
 % if l3_supported:
 void network_terminate();

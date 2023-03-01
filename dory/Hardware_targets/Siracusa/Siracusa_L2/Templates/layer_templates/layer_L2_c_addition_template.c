@@ -23,6 +23,7 @@ ${verbose_log}
 % if sdk == 'gap_sdk':
 #include "pulp.h"
   % endif
+#include "${prefix}network.h"
 #include "pmsis.h"
 #include "dory_get_tile.h"
 #include "dory_dma.h"
@@ -31,13 +32,13 @@ ${verbose_log}
 % if ULTRA_VERBOSE:
 #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
 % endif
-
-
-
+static uint32_t startCycles, endCycles, STARTED = 0;
 
 void ${func_name}(
   void *args
 ) {
+  startCycles = pi_perf_cl_read(PI_PERF_CYCLES);
+  
   unsigned int *real_arg = (unsigned int *) args;
   unsigned int l3_x =(unsigned int)  real_arg[0];
   unsigned int l3_y =(unsigned int)  real_arg[1];
@@ -118,6 +119,12 @@ void ${func_name}(
     DMA_copy_x.number_of_2d_copies = x_tile_size_h;
     DMA_copy_x.number_of_1d_copies = x_tile_size_w;
     DMA_copy_x.length_1d_copy = x_length_nif_byte;
+    if (STARTED==0){
+      if (pi_core_id() == 0){
+	startCycles = pi_perf_cl_read(PI_PERF_CYCLES);
+	STARTED = 1;
+      }
+    }
     dory_dma_memcpy_async(&DMA_copy_x);
     dory_dma_barrier(&DMA_copy_x);
 
@@ -204,4 +211,8 @@ void ${func_name}(
 % if not TEST:
   dory_dma_free(&DMA_copy_y);
 % endif
+  if (pi_core_id() == 0){
+        endCycles =	pi_perf_cl_read(PI_PERF_CYCLES);
+    ${prefix}ADD_CYCLES += endCycles - startCycles;
+  }
 }
