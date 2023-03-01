@@ -148,6 +148,10 @@ void execute_layer_fork(void *args) {
 
 void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec${", void *L2_input_h" if not l3_supported else ""})
 {
+
+  ${prefix}NEUREKA_CYCLES = 0;
+  ${prefix}ADD_CYCLES = 0;
+  
 /*
   - initial buffer allocation L2 and L1
   - variable declaration
