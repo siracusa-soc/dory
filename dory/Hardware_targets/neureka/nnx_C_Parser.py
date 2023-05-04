@@ -205,7 +205,6 @@ class nnx_C_Parser(Parser_HW_to_C):
         return tmpl_writer
 
     def create_hex_weight(self, node):
-        # if not hasattr(node, "offloadable") or not node.offloadable
 
         super().create_hex_weight(node)
 

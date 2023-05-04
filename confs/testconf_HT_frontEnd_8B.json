@@ -6,6 +6,6 @@
     "input_signed": false,
     "use_wmem": true,
     "offload": true,
-    "nnx_dir":"/home/moritzs/PULP/Handtracking/dory/dory/Hardware_targets/neureka/" 
+    "nnx_dir":"/scratch/scheremo/HandDetection/dory/dory/Hardware_targets/neureka/" 
 }
 

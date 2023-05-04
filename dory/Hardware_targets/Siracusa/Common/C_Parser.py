@@ -167,6 +167,10 @@ class C_Parser_Siracusa(Parser_HW_to_C):
                 nnx_C_Parser.map_layer_to_C_file(node, self.config_file, self.acc, os.path.join(self.config_file['nnx_dir'], "Templates/layer_templates"), out_dir, self.HW_description)
 
     def create_hex_weight(self, node):
+
+        # if not hasattr(node, "offloadable") or not node.offloadable
+
+
         if (node.HW_description['memory']['levels'] > 2) and (not hasattr(node, "offloadable") or not node.offloadable):
             super().create_hex_weight(node)
         elif hasattr(node, "offloadable") and node.offloadable:

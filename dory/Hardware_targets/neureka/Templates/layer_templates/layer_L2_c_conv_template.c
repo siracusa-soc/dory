@@ -324,7 +324,12 @@ void ${func_name}(
     .depth = ${W_tile_size_nif},
     .n_weights = ${W_tile_size_nof},
     .bitwidth = ${W_data_size},
-    .offset_factor = ${-(2**(W_data_size-1))},
+  <%
+    offset = 0;
+    if fs1 != 1:
+        offset = -(2**(W_data_size-1))
+    %>
+    .offset_factor = ${offset},
     .offset_mode = weightOffsetModeLayerWise
   };
 

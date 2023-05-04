@@ -208,7 +208,11 @@ def create_layer(i_layer, layer_node, dory_node, network_dir, hardware_target, i
         w_offset, _ = borders(layer_node.weight_bits, signed=True)
     else:
         w_offset = 0
+
+    w = torch.abs(torch.abs(w) - 127)
     w_save = w
+    w_offset = 0
+
     layer_node.constant_names.append('weights')
     layer_node.weights = {
         'value': w_save.numpy(),

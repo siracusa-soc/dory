@@ -146,6 +146,16 @@ class onnx_manager_Siracusa(Parser_DORY_to_HW):
             #SCHEREMO: Check if it's a pointwise convolution:
             if node.group == 1 and node.kernel_shape == [1,1]:
                 print("1x1 dense - Offloading to NEUREKA...")
+                if hasattr(node, "weights"):
+                    weightsName = "weights"
+                else:
+                    weightsName = node.constant_names[0]
+                if not hasattr(node, "weights_adjusted"):
+                    assert(getattr(node,weightsName)['value'].min() >= 0), "Weight is negative!"
+                    newWeights = getattr(node,weightsName)
+                    newWeights['value'] = newWeights['value'] - 2**(node.weight_bits-1)
+                    setattr(node, weightsName, newWeights)
+                    node.weights_adjusted = True
                 return True
             #SCHEREMO: Check if it's a dense 3x3 convolution:
             elif node.group == 1 and node.kernel_shape == [3,3]:
