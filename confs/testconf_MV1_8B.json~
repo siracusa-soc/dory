@@ -1,0 +1,10 @@
+{
+    "BNRelu_bits": 32,
+    "onnx_file": "./dory/dory_examples/examples/Quantlab_examples/MV1_8bits_uint/model_int.onnx",
+    "code reserved space": 152000,
+    "input_bits": 8,
+    "input_signed": false,
+    "use_wmem": false,
+    "offload": true,
+    "nnx_dir":"/home/moritzs/PULP/Handtracking/dory/dory/Hardware_targets/neureka/" 
+}
